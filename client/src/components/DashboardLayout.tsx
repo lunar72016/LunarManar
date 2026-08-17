@@ -22,7 +22,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
   activeView: WorkspaceView;
   onViewChange: (view: WorkspaceView) => void;
-  syncState: "loading" | "synced" | "offline" | "pending" | "error";
+  syncState: "loading" | "connecting" | "synced" | "offline" | "pending" | "error";
 }) {
   return <SidebarProvider><WorkspaceSidebar activeView={activeView} onViewChange={onViewChange} /><SidebarInset><WorkspaceHeader activeView={activeView} syncState={syncState} />{children}</SidebarInset></SidebarProvider>;
 }
@@ -55,10 +55,10 @@ function WorkspaceSidebar({ activeView, onViewChange }: { activeView: WorkspaceV
   );
 }
 
-function WorkspaceHeader({ activeView, syncState }: { activeView: WorkspaceView; syncState: "loading" | "synced" | "offline" | "pending" | "error" }) {
+function WorkspaceHeader({ activeView, syncState }: { activeView: WorkspaceView; syncState: "loading" | "connecting" | "synced" | "offline" | "pending" | "error" }) {
   const isMobile = useIsMobile();
   const item = menuItems.find((menuItem) => menuItem.id === activeView) ?? menuItems[0];
-  const sync = syncState === "synced" ? { label: "已同步", icon: Cloud, tone: "text-[#4d8161] bg-[#edf5ef]" } : syncState === "pending" ? { label: "同步中", icon: RefreshCw, tone: "text-[#a26b33] bg-[#fff5e5]" } : syncState === "offline" ? { label: "離線快取", icon: CloudOff, tone: "text-[#876951] bg-[#f8eee5]" } : { label: "讀取資料", icon: RefreshCw, tone: "text-[#7e796f] bg-[#f2f0ec]" };
+  const sync = syncState === "synced" ? { label: "已同步", icon: Cloud, tone: "text-[#4d8161] bg-[#edf5ef]" } : syncState === "pending" ? { label: "同步中", icon: RefreshCw, tone: "text-[#a26b33] bg-[#fff5e5]" } : syncState === "offline" ? { label: "離線快取", icon: CloudOff, tone: "text-[#876951] bg-[#f8eee5]" } : syncState === "connecting" ? { label: "連線中，可先作業", icon: RefreshCw, tone: "text-[#766958] bg-[#f6f1e9]" } : { label: "讀取資料", icon: RefreshCw, tone: "text-[#7e796f] bg-[#f2f0ec]" };
   const SyncIcon = sync.icon;
   return <header className="sticky top-0 z-20 flex h-[70px] items-center justify-between border-b border-[#eee6df] bg-[#fffdfa]/92 px-4 backdrop-blur-xl sm:px-7"><div className="flex items-center gap-3">{isMobile && <SidebarTrigger className="rounded-xl border border-[#e9e0d8] bg-white" />}<div><p className="font-display text-xl font-semibold text-[#2e4638]">{item.label}</p>{!isMobile && <p className="mt-0.5 text-[10px] tracking-[0.14em] text-[#a18875]">LUNAR COMMISSION MANAGER</p>}</div></div><div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${sync.tone}`}><SyncIcon className={`h-3.5 w-3.5 ${syncState === "pending" || syncState === "loading" ? "animate-spin" : ""}`} />{sync.label}</div></header>;
 }

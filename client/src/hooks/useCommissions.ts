@@ -3,6 +3,7 @@ import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   setDoc,
@@ -11,7 +12,18 @@ import {
 } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type SyncState = "loading" | "synced" | "offline" | "pending" | "error";
+type SyncState = "loading" | "connecting" | "synced" | "offline" | "pending" | "error";
+
+function getFirestoreErrorMessage(error: unknown) {
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  if (rawMessage.includes("permission-denied")) {
+    return "Firestore 拒絕存取。請在 Firebase Console 建立資料庫，並將專案內的 firestore.rules 發布到 Rules 分頁。";
+  }
+  if (rawMessage.includes("unavailable") || rawMessage.includes("network")) {
+    return "目前無法連線至 Firestore；變更會先留在本機快取，恢復連線後會自動同步。";
+  }
+  return rawMessage;
+}
 
 function orderCommissions(items: Commission[]) {
   return [...items].sort((a, b) => {
@@ -26,6 +38,11 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
   const [syncState, setSyncState] = useState<SyncState>("loading");
   const [error, setError] = useState<string | null>(null);
 
+  const reportWriteFailure = useCallback((writeError: unknown) => {
+    setError(getFirestoreErrorMessage(writeError));
+    setSyncState("error");
+  }, []);
+
   useEffect(() => {
     const db = firestoreDb;
     if (!db || !user || !isAllowed) {
@@ -33,7 +50,8 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
       setSyncState("error");
       return;
     }
-    setSyncState("loading");
+    setError(null);
+    setSyncState("connecting");
     const commissionCollection = collection(db, "artists", user.uid, "commissions");
     return onSnapshot(
       commissionCollection,
@@ -45,7 +63,7 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
         setSyncState(snapshot.metadata.hasPendingWrites ? "pending" : snapshot.metadata.fromCache ? "offline" : "synced");
       },
       (nextError) => {
-        setError(nextError.message);
+        setError(getFirestoreErrorMessage(nextError));
         setSyncState("error");
       },
     );
@@ -57,22 +75,34 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
       if (!db || !user) throw new Error("目前無法連接資料庫");
       const reference = doc(collection(db, "artists", user.uid, "commissions"));
       const next = { ...commission, id: reference.id, updatedAt: Date.now() };
-      await setDoc(reference, next);
+      setSyncState("pending");
+      void setDoc(reference, next).catch(reportWriteFailure);
       return next;
     },
-    [user?.uid],
+    [reportWriteFailure, user?.uid],
   );
 
   const updateCommission = useCallback(
     async (id: string, changes: Partial<Commission>) => {
       const db = firestoreDb;
       if (!db || !user) throw new Error("目前無法連接資料庫");
-      await updateDoc(doc(db, "artists", user.uid, "commissions", id), {
+      setSyncState("pending");
+      void updateDoc(doc(db, "artists", user.uid, "commissions", id), {
         ...changes,
         updatedAt: Date.now(),
-      });
+      }).catch(reportWriteFailure);
     },
-    [user?.uid],
+    [reportWriteFailure, user?.uid],
+  );
+
+  const deleteCommission = useCallback(
+    async (id: string) => {
+      const db = firestoreDb;
+      if (!db || !user) throw new Error("目前無法連接資料庫");
+      setSyncState("pending");
+      void deleteDoc(doc(db, "artists", user.uid, "commissions", id)).catch(reportWriteFailure);
+    },
+    [reportWriteFailure, user?.uid],
   );
 
   const changeStatus = useCallback(
@@ -91,11 +121,12 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
       const reference = doc(collection(db, "artists", user.uid, "commissions"));
       batch.set(reference, { ...item, id: reference.id, updatedAt: Date.now() });
     });
-    await batch.commit();
-  }, [user?.uid]);
+    setSyncState("pending");
+    void batch.commit().catch(reportWriteFailure);
+  }, [reportWriteFailure, user?.uid]);
 
   return useMemo(
-    () => ({ commissions, syncState, error, createCommission, updateCommission, changeStatus, importInitialRecords }),
-    [changeStatus, commissions, createCommission, error, importInitialRecords, syncState, updateCommission],
+    () => ({ commissions, syncState, error, createCommission, updateCommission, deleteCommission, changeStatus, importInitialRecords }),
+    [changeStatus, commissions, createCommission, deleteCommission, error, importInitialRecords, syncState, updateCommission],
   );
 }

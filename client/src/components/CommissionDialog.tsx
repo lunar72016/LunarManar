@@ -10,6 +10,7 @@ import {
   rushLevelOptions,
   statusMeta,
 } from "@/lib/commission";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, CircleDollarSign, Sparkles } from "lucide-react";
+import { Check, CircleDollarSign, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type CommissionDialogProps = {
@@ -25,6 +26,7 @@ type CommissionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (commission: Commission) => Promise<void>;
+  onDelete?: (commission: Commission) => Promise<void>;
 };
 
 const paymentLabels: Record<PaymentState, string> = {
@@ -73,9 +75,10 @@ function ToggleList({
   );
 }
 
-export function CommissionDialog({ commission, open, onOpenChange, onSave }: CommissionDialogProps) {
+export function CommissionDialog({ commission, open, onOpenChange, onSave, onDelete }: CommissionDialogProps) {
   const [draft, setDraft] = useState<Commission>(createBlankCommission());
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (open) setDraft(commission ? structuredClone(commission) : createBlankCommission());
@@ -123,6 +126,17 @@ export function CommissionDialog({ commission, open, onOpenChange, onSave }: Com
       onOpenChange(false);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!commission || !onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(commission);
+      onOpenChange(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -210,9 +224,17 @@ export function CommissionDialog({ commission, open, onOpenChange, onSave }: Com
           </section>
         </div>
 
-        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#eee5dd] bg-[#fffdfa]/95 px-6 py-4 backdrop-blur sm:px-8">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>取消</Button>
-          <Button className="bg-[#355b48] text-white hover:bg-[#294a3a]" onClick={submit} disabled={saving || !draft.clientName.trim()}>{saving ? "儲存中…" : "儲存委託單"}</Button>
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-[#eee5dd] bg-[#fffdfa]/95 px-6 py-4 backdrop-blur sm:px-8">
+          <div>
+            {commission && onDelete && <AlertDialog>
+              <AlertDialogTrigger asChild><Button variant="outline" className="border-[#edc9bf] text-[#a14f3d] hover:bg-[#fff1ec] hover:text-[#8d4030]" disabled={saving || deleting}><Trash2 className="mr-1.5 h-4 w-4" />刪除此排單</Button></AlertDialogTrigger>
+              <AlertDialogContent className="border-[#ecd8cf] bg-[#fffdfa]">
+                <AlertDialogHeader><AlertDialogTitle className="font-display text-xl text-[#543a32]">確定刪除「{commission.clientName}」的排單？</AlertDialogTitle><AlertDialogDescription className="leading-6 text-[#806c61]">此動作會從你的工作台與 Firestore 資料庫移除此委託單，無法復原。</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel disabled={deleting}>保留排單</AlertDialogCancel><AlertDialogAction onClick={() => void remove()} disabled={deleting} className="bg-[#a6523e] text-white hover:bg-[#8e4030]">{deleting ? "刪除中…" : "確定刪除"}</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>}
+          </div>
+          <div className="flex gap-3"><Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>取消</Button><Button className="bg-[#355b48] text-white hover:bg-[#294a3a]" onClick={submit} disabled={saving || deleting || !draft.clientName.trim()}>{saving ? "儲存中…" : "儲存委託單"}</Button></div>
         </div>
       </DialogContent>
     </Dialog>

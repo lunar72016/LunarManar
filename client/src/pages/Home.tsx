@@ -22,7 +22,7 @@ export default function Home() {
 
 function CommissionWorkspace() {
   const { user, signOut } = useFirebaseAuth();
-  const { commissions, syncState, error, createCommission, updateCommission, changeStatus, importInitialRecords } = useCommissions(user, true);
+  const { commissions, syncState, error, createCommission, updateCommission, deleteCommission, changeStatus, importInitialRecords } = useCommissions(user, true);
   const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -52,7 +52,7 @@ function CommissionWorkspace() {
     try {
       if (selected) await updateCommission(selected.id, { ...commission, id: selected.id });
       else await createCommission(commission);
-      toast.success(selected ? "委託單已更新" : "已建立新的委託單");
+      toast.success(selected ? "委託單已更新" : "已建立新的委託單", { description: "已先儲存在本機，系統會在背景自動同步。" });
     } catch (saveError) {
       toast.error("儲存時發生問題", { description: saveError instanceof Error ? saveError.message : "請稍後再試" });
       throw saveError;
@@ -62,9 +62,18 @@ function CommissionWorkspace() {
     try { await changeStatus(commission, next); toast.success(`${commission.clientName} 已更新為「${statusMeta[next].label}」`); }
     catch { toast.error("無法更新進度，請檢查網路或 Firestore 規則。") }
   };
+  const removeCommission = async (commission: Commission) => {
+    try {
+      await deleteCommission(commission.id);
+      toast.success(`已刪除「${commission.clientName}」的排單`, { description: "已從本機移除，系統會在背景同步刪除。" });
+    } catch (deleteError) {
+      toast.error("刪除時發生問題", { description: deleteError instanceof Error ? deleteError.message : "請稍後再試" });
+      throw deleteError;
+    }
+  };
   const importRecords = async () => {
     setImporting(true);
-    try { await importInitialRecords(); toast.success("已匯入八月與九月的 14 張既有委託單"); }
+    try { await importInitialRecords(); toast.success("已匯入八月與九月的 14 張既有委託單", { description: "資料已先寫入本機，正等待背景同步。" }); }
     catch (importError) { toast.error("匯入失敗", { description: importError instanceof Error ? importError.message : "請確認 Firestore 已建立並套用規則" }); }
     finally { setImporting(false); }
   };
@@ -78,7 +87,7 @@ function CommissionWorkspace() {
       </div>
       {commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered} onEdit={(commission) => { setSelected(commission); setDialogOpen(true); }} onAdvance={advance} /> : <BoardView groups={monthlyGroups} onEdit={(commission) => { setSelected(commission); setDialogOpen(true); }} onAdvance={advance} />}
     </main>
-    <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} />
+    <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} onDelete={removeCommission} />
   </DashboardLayout>;
 }
 
