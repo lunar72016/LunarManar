@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Noto+Serif+TC:wght@500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "DM Sans", "Noto Sans TC", sans-serif;
+  --font-display: "Noto Serif TC", serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.78rem;
+  --background: oklch(0.979 0.011 76);
+  --foreground: oklch(0.31 0.026 144);
+  --card: oklch(0.995 0.004 76);
+  --card-foreground: oklch(0.31 0.026 144);
+  --popover: oklch(0.995 0.004 76);
+  --popover-foreground: oklch(0.31 0.026 144);
+  --primary: oklch(0.42 0.064 151);
+  --primary-foreground: oklch(0.985 0.006 83);
+  --secondary: oklch(0.946 0.019 78);
+  --secondary-foreground: oklch(0.4 0.029 78);
+  --muted: oklch(0.955 0.011 75);
+  --muted-foreground: oklch(0.55 0.025 76);
+  --accent: oklch(0.92 0.027 149);
+  --accent-foreground: oklch(0.32 0.052 149);
+  --destructive: oklch(0.59 0.15 28);
+  --destructive-foreground: oklch(0.985 0.004 83);
+  --border: oklch(0.9 0.017 75);
+  --input: oklch(0.9 0.017 75);
+  --ring: oklch(0.54 0.074 151);
+  --sidebar: oklch(0.964 0.012 82);
+  --sidebar-foreground: oklch(0.34 0.032 146);
+  --sidebar-primary: oklch(0.42 0.064 151);
+  --sidebar-primary-foreground: oklch(0.985 0.006 83);
+  --sidebar-accent: oklch(0.92 0.027 149);
+  --sidebar-accent-foreground: oklch(0.32 0.052 149);
+  --sidebar-border: oklch(0.9 0.017 75);
+  --sidebar-ring: oklch(0.54 0.074 151);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { background: #faf7f2; }
+  body { @apply bg-background font-sans text-foreground antialiased; }
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [type="button"]:not(:disabled), [type="submit"]:not(:disabled), [type="reset"]:not(:disabled), a[href], select:not(:disabled), input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled) { @apply cursor-pointer; }
+  ::selection { background: #d9e8dc; color: #294a3a; }
+}
+
+@layer components {
+  .font-display { font-family: "Noto Serif TC", serif; }
+  .flex { min-height: 0; min-width: 0; }
+  .container { width: 100%; margin-inline: auto; padding-inline: 1rem; }
+  @media (min-width: 640px) { .container { padding-inline: 1.5rem; } }
+  @media (min-width: 1024px) { .container { max-width: 1280px; padding-inline: 2rem; } }
+}
