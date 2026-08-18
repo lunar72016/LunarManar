@@ -163,16 +163,16 @@ const plugins = [
   vitePluginManusDebugCollector(),
   VitePWA({
     registerType: "autoUpdate",
-    includeAssets: ["lunar-mark.svg"],
+    includeAssets: ["hui-yue-title.svg"],
     manifest: {
-      name: "月光委託管理",
-      short_name: "月光委託",
-      description: "Lunar Atelier 的離線優先委託管理工作台。",
+      name: "繪月錄",
+      short_name: "繪月錄",
+      description: "繪月錄的離線優先委託管理工作台。",
       theme_color: "#355b48",
       background_color: "#faf7f2",
       display: "standalone",
       lang: "zh-Hant",
-      icons: [{ src: "lunar-mark.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
+      icons: [{ src: "hui-yue-title.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
     },
     workbox: {
       navigateFallback: "index.html",
