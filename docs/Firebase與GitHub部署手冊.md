@@ -12,7 +12,6 @@
 | **Authentication → Users** | 建立你的繪師帳號，並確認其 UID 為 `a9dFKJad7HUkHnZaNmF1cUTfZ583`。 | 此 UID 是前端白名單與 Firestore Rules 的唯一管理者。 |
 | **Firestore Database** | 以 Production mode 建立 Cloud Firestore。 | 儲存委託、款項、草稿與進度歷程。 |
 | **Firestore Database → Rules** | 以本專案根目錄的 `firestore.rules` 完整覆蓋規則後發布。 | 僅允許指定 UID 對 `artists/{uid}/commissions/*` 讀寫。 |
-| **Storage** | 建立預設 Cloud Storage bucket；建立後到 **Storage → Rules**，以 `storage.rules` 完整覆蓋規則後發布。 | 保存跨裝置使用的工作室頭像；規則限制指定 UID、圖片格式與 5MB 上限。 |
 | **Authentication → Settings → Authorized domains** | 加入 `你的帳號.github.io`；若有自訂網域也一併加入。 | 讓部署後的 Firebase Authentication 可正常登入。 |
 
 Firestore Rules 發布完成後，未登入者、UID 不相符者，以及試圖存取其他 `artistId` 資料路徑者都會被拒絕。請一併發布新版 `firestore.rules`，因為工作室設定資料位於 `artists/{uid}/settings/studio`。不要為了排錯暫時改成 `allow read, write: if true;`，這會公開所有委託資料。
@@ -26,7 +25,6 @@ Firestore Rules 發布完成後，未登入者、UID 不相符者，以及試圖
 | `VITE_FIREBASE_API_KEY` | Firebase Web App 組態的 `apiKey` |
 | `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Web App 組態的 `authDomain` |
 | `VITE_FIREBASE_PROJECT_ID` | Firebase Web App 組態的 `projectId` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase Web App 組態的 `storageBucket` |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase Web App 組態的 `messagingSenderId` |
 | `VITE_FIREBASE_APP_ID` | Firebase Web App 組態的 `appId` |
 | `VITE_FIREBASE_ALLOWED_UID` | `a9dFKJad7HUkHnZaNmF1cUTfZ583` |
