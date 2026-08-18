@@ -39,3 +39,11 @@
 - [ ] 在側邊欄收合狀態下實機確認控制按鈕與底部頭像的水平置中對齊
 - [x] 將工作台與登入頁說明文字統一為繪月錄的書畫意象風格
 - [ ] 修正 Firebase Firestore Missing or insufficient permissions 的規則發布與讀寫驗證
+- [x] 改善工作室頭像上傳等待過久，加入上傳進度、逾時與 Firebase Storage 錯誤提示
+- [x] 確保頭像上傳僅在 Firebase Storage 與 Firestore avatarUrl 均持久化成功後顯示成功訊息
+- [x] 補強頭像上傳的 Storage 成功但 Firestore 失敗、逾時取消與進度狀態測試
+- [x] 取消 Firebase Storage 頭像上傳，改以無頭像的工作室設定頁取代原 Storage 排錯作業
+- [x] 比較免費線上頭像保存替代方案，確認靜態 GitHub Pages 的安全整合方式
+- [x] 移除工作室頭像、Firebase Storage 與所有相關上傳流程
+- [x] 將丹青設案調整為與千繪總覽、排畫連雲一致的工作台版型
+- [x] 新增繪月錄 SVG title 圖示並套用至頁籤、登入頁與側邊欄品牌區

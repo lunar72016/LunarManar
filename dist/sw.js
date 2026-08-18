@@ -77,26 +77,26 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    * See https://goo.gl/S9QRab
    */
   workbox.precacheAndRoute([{
-    "url": "lunar-mark.svg",
-    "revision": "f96936ee1839ff30f845a34c7ce95088"
-  }, {
     "url": "index.html",
-    "revision": "00938abc901b577e8ce9e8571ea30ebc"
+    "revision": "fe84478d9aaa2f32400452c50789aad5"
   }, {
-    "url": "assets/index-CSFpkS-f.css",
+    "url": "hui-yue-title.svg",
+    "revision": "08f4d00d1325ea519dd08ed1d5646d82"
+  }, {
+    "url": "assets/index-DT4w_7n8.css",
     "revision": null
   }, {
-    "url": "assets/index-C6lZxC9Y.js",
+    "url": "assets/index-BcNUttjw.js",
     "revision": null
   }, {
     "url": "__manus__/debug-collector.js",
     "revision": "45b1e83bacf2dc3d3b20bb18b465abe0"
   }, {
-    "url": "lunar-mark.svg",
-    "revision": "f96936ee1839ff30f845a34c7ce95088"
+    "url": "hui-yue-title.svg",
+    "revision": "08f4d00d1325ea519dd08ed1d5646d82"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "f34de3140e55f54d542e08cc25573468"
+    "revision": "c9e7056f593d66750040984fcacb104a"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html")));
