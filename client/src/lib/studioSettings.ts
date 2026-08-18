@@ -3,7 +3,6 @@ import type { LicenseOption } from "@/lib/commission";
 
 export type StudioSettings = {
   studioName: string;
-  avatarUrl: string;
   combinationPrices: Record<string, Record<string, number>>;
   rushMultipliers: Record<string, number>;
   licenseMultipliers: Record<LicenseOption, number>;
@@ -15,8 +14,7 @@ function createCombinationPrices() {
 }
 
 export const defaultStudioSettings = (): StudioSettings => ({
-  studioName: "Lunar Atelier",
-  avatarUrl: "",
+  studioName: "繪月錄",
   combinationPrices: createCombinationPrices(),
   rushMultipliers: { "一般加急": 1, "中度加急": 1, "高度加急": 1, "極限加急": 1 },
   licenseMultipliers: { commercial: 1, promotion: 1, buyout: 1 },

@@ -1,5 +1,4 @@
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -20,19 +19,17 @@ export default function DashboardLayout({
   onViewChange,
   syncState,
   studioName,
-  avatarUrl,
 }: {
   children: React.ReactNode;
   activeView: WorkspaceView;
   onViewChange: (view: WorkspaceView) => void;
   syncState: "loading" | "connecting" | "synced" | "offline" | "pending" | "error";
   studioName: string;
-  avatarUrl: string;
 }) {
-  return <SidebarProvider><WorkspaceSidebar activeView={activeView} onViewChange={onViewChange} studioName={studioName} avatarUrl={avatarUrl} /><SidebarInset><WorkspaceHeader activeView={activeView} syncState={syncState} />{children}</SidebarInset></SidebarProvider>;
+  return <SidebarProvider><WorkspaceSidebar activeView={activeView} onViewChange={onViewChange} studioName={studioName} /><SidebarInset><WorkspaceHeader activeView={activeView} syncState={syncState} />{children}</SidebarInset></SidebarProvider>;
 }
 
-function WorkspaceSidebar({ activeView, onViewChange, studioName, avatarUrl }: { activeView: WorkspaceView; onViewChange: (view: WorkspaceView) => void; studioName: string; avatarUrl: string }) {
+function WorkspaceSidebar({ activeView, onViewChange, studioName }: { activeView: WorkspaceView; onViewChange: (view: WorkspaceView) => void; studioName: string }) {
   const { user, signOut } = useFirebaseAuth();
   const { toggleSidebar, state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -41,7 +38,7 @@ function WorkspaceSidebar({ activeView, onViewChange, studioName, avatarUrl }: {
       <SidebarHeader className="h-24 px-3 py-4 group-data-[collapsible=icon]:px-2">
         <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
           <button onClick={toggleSidebar} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e9eee8] text-[#466a57] transition hover:bg-[#dbe6dc]" aria-label="收合導覽"><PanelLeft className="h-4 w-4" /></button>
-          {!collapsed && <div><p className="font-display text-xl font-semibold tracking-tight text-[#294a3a]">繪月錄</p><p className="text-[10px] tracking-[0.18em] text-[#9a8574]">PAINTING LEDGER</p></div>}
+          {!collapsed && <div className="flex items-center gap-2"><img src="/hui-yue-title.svg" className="h-7 w-7" alt="繪月錄圖示" /><div><p className="font-display text-xl font-semibold tracking-tight text-[#294a3a]">繪月錄</p><p className="text-[10px] tracking-[0.18em] text-[#9a8574]">PAINTING LEDGER</p></div></div>}
         </div>
       </SidebarHeader>
       <SidebarContent className="px-2">
@@ -52,7 +49,7 @@ function WorkspaceSidebar({ activeView, onViewChange, studioName, avatarUrl }: {
       </SidebarContent>
       <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-2">
         <div className="rounded-2xl bg-[#eef1e9] p-2 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
-          <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"><Avatar className="h-9 w-9 border border-[#d8e1d8]"><AvatarImage src={avatarUrl} alt={studioName} /><AvatarFallback className="bg-[#dce8dd] text-xs font-semibold text-[#315741]">{studioName.slice(0, 1).toUpperCase() || user?.email?.slice(0, 1).toUpperCase() || "L"}</AvatarFallback></Avatar><div className="min-w-0 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold text-[#405748]">{studioName || "繪師工作室"}</p><p className="truncate text-[10px] text-[#819082]">{user?.email ?? "Firebase 帳號"}</p></div></div>
+          <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"><img src="/hui-yue-title.svg" className="h-9 w-9 shrink-0 rounded-xl border border-[#d8e1d8] bg-[#dce8dd] p-1.5" alt="繪月錄圖示" /><div className="min-w-0 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold text-[#405748]">{studioName || "繪月錄"}</p><p className="truncate text-[10px] text-[#819082]">{user?.email ?? "Firebase 帳號"}</p></div></div>
           {!collapsed && <Button variant="ghost" size="sm" onClick={() => void signOut()} className="mt-2 h-8 w-full justify-start text-xs text-[#92635c] hover:bg-[#f8e9e5] hover:text-[#82514a]"><LogOut className="mr-1.5 h-3.5 w-3.5" />登出</Button>}
         </div>
       </SidebarFooter>
