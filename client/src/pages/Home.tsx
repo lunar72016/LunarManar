@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { useCommissions } from "@/hooks/useCommissions";
-import { Commission, CommissionStatus, formatCurrency, monthLabel, statusMeta } from "@/lib/commission";
+import { useStudioSettings } from "@/hooks/useStudioSettings";
+import { Commission, CommissionStatus, applyAutomaticPricing, formatCurrency, monthLabel, statusMeta } from "@/lib/commission";
+import StudioSettingsPage from "@/pages/StudioSettingsPage";
 import { BadgePlus, CalendarClock, CircleDollarSign, CloudOff, FolderKanban, LockKeyhole, Search, Sparkles, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -21,8 +23,9 @@ export default function Home() {
 }
 
 function CommissionWorkspace() {
-  const { user, signOut } = useFirebaseAuth();
-  const { commissions, syncState, error, createCommission, updateCommission, deleteCommission, changeStatus, importInitialRecords } = useCommissions(user, true);
+  const { user } = useFirebaseAuth();
+  const { commissions, syncState, error: commissionsError, saveQueuedCommission, deleteCommission, changeStatus, importInitialRecords } = useCommissions(user, true);
+  const studio = useStudioSettings(user, true);
   const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,14 +47,14 @@ function CommissionWorkspace() {
   const summary = useMemo(() => {
     const paidDeposit = commissions.filter((item) => item.depositState === "paid").reduce((total, item) => total + (item.depositAmount ?? 0), 0);
     const paidBalance = commissions.filter((item) => item.balanceState === "paid").reduce((total, item) => total + (item.balanceAmount ?? 0), 0);
-    return { total: commissions.length, active: commissions.filter((item) => !["completed", "inquiry"].includes(item.status)).length, awaiting: commissions.filter((item) => ["awaiting_deposit", "awaiting_balance"].includes(item.status)).length, income: paidDeposit + paidBalance };
+    return { total: commissions.length, sketching: commissions.filter((item) => item.status === "sketching").length, finalizing: commissions.filter((item) => item.status === "finalizing").length, awaiting: commissions.filter((item) => ["awaiting_deposit", "awaiting_balance"].includes(item.status)).length, income: paidDeposit + paidBalance };
   }, [commissions]);
 
   const openNew = () => { setSelected(null); setDialogOpen(true); };
   const saveCommission = async (commission: Commission) => {
     try {
-      if (selected) await updateCommission(selected.id, { ...commission, id: selected.id });
-      else await createCommission(commission);
+      const calculated = applyAutomaticPricing(studio.settings, commission);
+      await saveQueuedCommission(calculated, !selected);
       toast.success(selected ? "委託單已更新" : "已建立新的委託單", { description: "已先儲存在本機，系統會在背景自動同步。" });
     } catch (saveError) {
       toast.error("儲存時發生問題", { description: saveError instanceof Error ? saveError.message : "請稍後再試" });
@@ -78,22 +81,25 @@ function CommissionWorkspace() {
     finally { setImporting(false); }
   };
 
-  return <DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState}>
-    <main className="min-h-[calc(100vh-70px)] bg-[#faf7f2] px-4 py-5 sm:px-7 sm:py-7">
-      {error && <div className="mb-5 rounded-2xl border border-[#efc8ba] bg-[#fff4ef] px-4 py-3 text-sm text-[#8b4d39]">無法讀取 Firebase 資料：{error}。請確認 Firestore 已建立並套用安全規則。</div>}
+  const error = commissionsError ?? studio.error;
+  const heading = activeView === "dashboard" ? "你的創作節奏" : activeView === "board" ? "按月份掌握排單" : "工作室設定";
+
+  return <DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName} avatarUrl={studio.settings.avatarUrl}>
+    {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} uploading={studio.uploading} error={studio.error} onSave={studio.saveSettings} onUploadAvatar={studio.uploadAvatar} /> : <main className="min-h-[calc(100vh-70px)] bg-[#faf7f2] px-4 py-5 sm:px-7 sm:py-7">
+      {error && <div className="mb-5 rounded-2xl border border-[#efc8ba] bg-[#fff4ef] px-4 py-3 text-sm text-[#8b4d39]">Firebase 資料同步提示：{error}</div>}
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><p className="font-display text-3xl font-semibold tracking-tight text-[#294335]">{activeView === "dashboard" ? "你的創作節奏" : "按月份掌握排單"}</p><p className="mt-2 text-sm text-[#88786b]">所有變動都會保留在你的工作空間；離線時將先安全存於這台裝置。</p></div>
-        <div className="flex flex-wrap gap-2"><div className="relative min-w-[220px] flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#a99686]" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="border-[#e8ded4] bg-[#fffdfa] pl-9" placeholder="搜尋委託人、範圍或精緻度" /></div><Button variant="outline" className="border-[#ddcfc1] bg-[#fffdfa] text-[#625448] hover:bg-[#f5eee7]" onClick={() => void signOut()}>登出</Button><Button className="bg-[#355b48] text-white shadow-[0_8px_20px_rgba(53,91,72,.18)] hover:bg-[#294a3a]" onClick={openNew}><BadgePlus className="mr-1.5 h-4 w-4" />建立委託單</Button></div>
+        <div><p className="font-display text-3xl font-semibold tracking-tight text-[#294335]">{heading}</p><p className="mt-2 text-sm text-[#88786b]">所有變動都會保留在你的工作空間；離線時將先安全存於這台裝置。</p></div>
+        <div className="flex flex-wrap gap-2"><div className="relative min-w-[220px] flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#a99686]" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="border-[#e8ded4] bg-[#fffdfa] pl-9" placeholder="搜尋委託人、範圍或精緻度" /></div><Button className="bg-[#355b48] text-white shadow-[0_8px_20px_rgba(53,91,72,.18)] hover:bg-[#294a3a]" onClick={openNew}><BadgePlus className="mr-1.5 h-4 w-4" />寫畫起約</Button></div>
       </div>
       {commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered} onEdit={(commission) => { setSelected(commission); setDialogOpen(true); }} onAdvance={advance} /> : <BoardView groups={monthlyGroups} onEdit={(commission) => { setSelected(commission); setDialogOpen(true); }} onAdvance={advance} />}
-    </main>
-    <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} onDelete={removeCommission} />
+    </main>}
+    <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} onDelete={removeCommission} settings={studio.settings} />
   </DashboardLayout>;
 }
 
-function DashboardView({ summary, commissions, onEdit, onAdvance }: { summary: { total: number; active: number; awaiting: number; income: number }; commissions: Commission[]; onEdit: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {
+function DashboardView({ summary, commissions, onEdit, onAdvance }: { summary: { total: number; sketching: number; finalizing: number; awaiting: number; income: number }; commissions: Commission[]; onEdit: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {
   const priority = commissions.filter((commission) => !["completed", "inquiry"].includes(commission.status)).slice(0, 4);
-  return <div className="space-y-7"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><SummaryCard icon={<FolderKanban />} label="全部委託" value={String(summary.total)} detail="目前工作庫" tone="sage" /><SummaryCard icon={<CalendarClock />} label="進行中" value={String(summary.active)} detail="已確認或製作中的工作" tone="sand" /><SummaryCard icon={<WalletCards />} label="待收款" value={String(summary.awaiting)} detail="訂金或尾款等待確認" tone="rose" /><SummaryCard icon={<CircleDollarSign />} label="已入帳" value={`NT$ ${formatCurrency(summary.income)}`} detail="依付款狀態統計" tone="ink" /></div><section className="rounded-[1.5rem] border border-[#e9e0d8] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(83,63,43,.06)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#2c4637]">近期工作</h2><p className="mt-1 text-sm text-[#88786b]">優先處理正在線上的委託與付款節點。</p></div><Sparkles className="h-5 w-5 text-[#c98962]" /></div>{priority.length ? <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onEdit={onEdit} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section></div>;
+  return <div className="space-y-7"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"><SummaryCard icon={<FolderKanban />} label="全部委託" value={String(summary.total)} detail="目前工作庫" tone="sage" /><SummaryCard icon={<CalendarClock />} label="草稿製作中" value={String(summary.sketching)} detail="等待草稿確認" tone="sand" /><SummaryCard icon={<Sparkles />} label="完稿製作中" value={String(summary.finalizing)} detail="收尾與完稿階段" tone="sage" /><SummaryCard icon={<WalletCards />} label="待收款" value={String(summary.awaiting)} detail="訂金或尾款等待確認" tone="rose" /><SummaryCard icon={<CircleDollarSign />} label="已入帳" value={`NT$ ${formatCurrency(summary.income)}`} detail="依付款狀態統計" tone="ink" /></div><section className="rounded-[1.5rem] border border-[#e9e0d8] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(83,63,43,.06)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#2c4637]">近案墨痕</h2><p className="mt-1 text-sm text-[#88786b]">優先處理正在線上的委託與付款節點。</p></div><Sparkles className="h-5 w-5 text-[#c98962]" /></div>{priority.length ? <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onEdit={onEdit} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section></div>;
 }
 
 function BoardView({ groups, onEdit, onAdvance }: { groups: Record<string, Commission[]>; onEdit: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {

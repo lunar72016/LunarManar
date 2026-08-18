@@ -12,9 +12,10 @@
 | **Authentication → Users** | 建立你的繪師帳號，並確認其 UID 為 `a9dFKJad7HUkHnZaNmF1cUTfZ583`。 | 此 UID 是前端白名單與 Firestore Rules 的唯一管理者。 |
 | **Firestore Database** | 以 Production mode 建立 Cloud Firestore。 | 儲存委託、款項、草稿與進度歷程。 |
 | **Firestore Database → Rules** | 以本專案根目錄的 `firestore.rules` 完整覆蓋規則後發布。 | 僅允許指定 UID 對 `artists/{uid}/commissions/*` 讀寫。 |
+| **Storage** | 建立預設 Cloud Storage bucket；建立後到 **Storage → Rules**，以 `storage.rules` 完整覆蓋規則後發布。 | 保存跨裝置使用的工作室頭像；規則限制指定 UID、圖片格式與 5MB 上限。 |
 | **Authentication → Settings → Authorized domains** | 加入 `你的帳號.github.io`；若有自訂網域也一併加入。 | 讓部署後的 Firebase Authentication 可正常登入。 |
 
-Firestore Rules 發布完成後，未登入者、UID 不相符者，以及試圖存取其他 `artistId` 資料路徑者都會被拒絕。不要為了排錯暫時改成 `allow read, write: if true;`，這會公開所有委託資料。
+Firestore Rules 發布完成後，未登入者、UID 不相符者，以及試圖存取其他 `artistId` 資料路徑者都會被拒絕。請一併發布新版 `firestore.rules`，因為工作室設定資料位於 `artists/{uid}/settings/studio`。不要為了排錯暫時改成 `allow read, write: if true;`，這會公開所有委託資料。
 
 ## 二、建立 GitHub 儲存庫與 Secrets
 
@@ -48,6 +49,8 @@ Vite 設定會在 GitHub Actions 執行時自動辨識上述兩種網址路徑�
 接著請以手機瀏覽器開啟網站，使用瀏覽器選單的「加入主畫面」或「安裝應用程式」。進入工作台後，建立或編輯一張委託單，再暫時關閉網路確認畫面上顯示「離線快取」且可繼續編輯；重新連線後應改回「同步中」再顯示「已同步」。Cloud Firestore 網頁端持久化快取支援讀取、查詢與將寫入操作排隊，網路恢復時會自動同步。[1]
 
 編輯既有委託單時，視窗左下角會顯示「刪除此排單」。按下後系統會再次要求確認，確認刪除才會從工作台與 Firestore 移除該筆資料。刪除先套用至本機快取並在背景同步；若 Firebase 規則或網路阻擋寫入，畫面會顯示錯誤訊息，方便先排除設定問題。
+
+新版的「工作室設定」可設定每個繪製範圍與精緻度的組合底價，以及加急、商用、宣傳、買斷的倍率。新委託的底價會將所有選取的組合加總；訂金為底價 50%；報價與追加報價會套用最高倍率，且建立委託時可用滑桿手動覆寫。若同一月份輸入重複的月內順序，該順序之後的排單會自動往後遞補。
 
 ## 五、限時進度分享的後續擴充
 

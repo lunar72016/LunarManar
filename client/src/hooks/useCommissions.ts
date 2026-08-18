@@ -1,4 +1,4 @@
-import { Commission, CommissionStatus, initialCommissions, withStatusTransition } from "@/lib/commission";
+import { Commission, CommissionStatus, getQueuePositionShifts, initialCommissions, withStatusTransition } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
 import {
@@ -82,6 +82,28 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
     [reportWriteFailure, user?.uid],
   );
 
+  const saveQueuedCommission = useCallback(
+    async (commission: Commission, isNew: boolean) => {
+      const db = firestoreDb;
+      if (!db || !user) throw new Error("目前無法連接資料庫");
+      const commissionCollection = collection(db, "artists", user.uid, "commissions");
+      const reference = isNew ? doc(commissionCollection) : doc(db, "artists", user.uid, "commissions", commission.id);
+      const occupied = commissions.filter((item) => item.id !== commission.id && item.queueMonth === commission.queueMonth);
+      const nextPosition = commission.queuePosition > 0 ? commission.queuePosition : Math.max(0, ...occupied.map((item) => item.queuePosition)) + 1;
+      const next = { ...commission, id: reference.id, queuePosition: nextPosition, updatedAt: Date.now() };
+      const previous = commissions.find((item) => item.id === commission.id);
+      const placementChanged = isNew || previous?.queueMonth !== next.queueMonth || previous?.queuePosition !== nextPosition;
+      const shifts = placementChanged ? getQueuePositionShifts(commissions, next.queueMonth, nextPosition, isNew ? undefined : commission.id) : [];
+      const batch = writeBatch(db);
+      shifts.forEach((shift) => batch.update(doc(db, "artists", user.uid, "commissions", shift.id), { queuePosition: shift.queuePosition, updatedAt: Date.now() }));
+      batch.set(reference, next);
+      setSyncState("pending");
+      void batch.commit().catch(reportWriteFailure);
+      return next;
+    },
+    [commissions, reportWriteFailure, user?.uid],
+  );
+
   const updateCommission = useCallback(
     async (id: string, changes: Partial<Commission>) => {
       const db = firestoreDb;
@@ -126,7 +148,7 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
   }, [reportWriteFailure, user?.uid]);
 
   return useMemo(
-    () => ({ commissions, syncState, error, createCommission, updateCommission, deleteCommission, changeStatus, importInitialRecords }),
-    [changeStatus, commissions, createCommission, deleteCommission, error, importInitialRecords, syncState, updateCommission],
+    () => ({ commissions, syncState, error, createCommission, saveQueuedCommission, updateCommission, deleteCommission, changeStatus, importInitialRecords }),
+    [changeStatus, commissions, createCommission, deleteCommission, error, importInitialRecords, saveQueuedCommission, syncState, updateCommission],
   );
 }

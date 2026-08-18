@@ -1,3 +1,5 @@
+import type { StudioSettings } from "@/lib/studioSettings";
+
 export const commissionStatuses = [
   "inquiry",
   "confirmed",
@@ -12,6 +14,7 @@ export const commissionStatuses = [
 
 export type CommissionStatus = (typeof commissionStatuses)[number];
 export type PaymentState = "paid" | "unpaid" | "unrecorded";
+export type LicenseOption = "commercial" | "promotion" | "buyout";
 
 export type StatusHistoryEntry = {
   status: CommissionStatus;
@@ -29,12 +32,14 @@ export type Commission = {
   queuePosition: number;
   characterCount: number;
   artScopes: string[];
+  customArtScope: string;
   finishLevels: string[];
   hasBackground: boolean;
   backgroundNote: string;
   requirements: string;
   isRush: boolean;
   rushLevel: string;
+  licenses: LicenseOption[];
   rushFee: number | null;
   rushMultiplier: number | null;
   basePriceMin: number | null;
@@ -45,6 +50,10 @@ export type Commission = {
   finalPrice: number | null;
   finalPriceText: string;
   balanceAmount: number | null;
+  estimatedPrice: number | null;
+  additionalAmount: number | null;
+  additionalQuoteAmount: number | null;
+  totalAmount: number | null;
   depositState: PaymentState;
   balanceState: PaymentState;
   depositPaidAt: number | null;
@@ -94,12 +103,14 @@ export const createBlankCommission = (): Commission => {
     queuePosition: 0,
     characterCount: 1,
     artScopes: [],
+    customArtScope: "",
     finishLevels: [],
     hasBackground: false,
     backgroundNote: "",
     requirements: "",
     isRush: false,
     rushLevel: "一般加急",
+    licenses: [],
     rushFee: null,
     rushMultiplier: null,
     basePriceMin: null,
@@ -110,6 +121,10 @@ export const createBlankCommission = (): Commission => {
     finalPrice: null,
     finalPriceText: "",
     balanceAmount: null,
+    estimatedPrice: null,
+    additionalAmount: null,
+    additionalQuoteAmount: null,
+    totalAmount: null,
     depositState: "unpaid",
     balanceState: "unpaid",
     depositPaidAt: null,
@@ -203,6 +218,57 @@ export function monthLabel(month: string) {
 export function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 }).format(value);
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value);
+}
+
+export function getDefaultMultiplier(settings: StudioSettings, commission: Pick<Commission, "isRush" | "rushLevel" | "licenses">) {
+  const candidates = [1];
+  if (commission.isRush) candidates.push(settings.rushMultipliers[commission.rushLevel] ?? 1);
+  (commission.licenses ?? []).forEach((license) => candidates.push(settings.licenseMultipliers[license] ?? 1));
+  return Math.max(...candidates);
+}
+
+export function calculateCommissionPricing(settings: StudioSettings, commission: Commission) {
+  const basePrice = roundCurrency((commission.artScopes ?? []).reduce((scopeTotal, scope) => {
+    return scopeTotal + (commission.finishLevels ?? []).reduce((finishTotal, finish) => finishTotal + (settings.combinationPrices[scope]?.[finish] ?? 0), 0);
+  }, 0));
+  const deposit = roundCurrency(basePrice / 2);
+  const defaultMultiplier = getDefaultMultiplier(settings, commission);
+  const multiplier = commission.rushMultiplier && commission.rushMultiplier > 0 ? commission.rushMultiplier : defaultMultiplier;
+  const quote = roundCurrency((commission.estimatedPrice ?? 0) * multiplier);
+  const balance = roundCurrency(Math.max(quote - deposit, 0));
+  const additionalQuote = roundCurrency((commission.additionalAmount ?? 0) * multiplier);
+  const total = roundCurrency(quote + additionalQuote);
+  return { basePrice, deposit, defaultMultiplier, multiplier, quote, balance, additionalQuote, total };
+}
+
+export function applyAutomaticPricing(settings: StudioSettings, commission: Commission): Commission {
+  const pricing = calculateCommissionPricing(settings, commission);
+  return {
+    ...commission,
+    rushMultiplier: pricing.multiplier,
+    basePriceMin: pricing.basePrice,
+    basePriceMax: pricing.basePrice,
+    basePriceText: String(pricing.basePrice),
+    depositAmount: pricing.deposit,
+    depositText: String(pricing.deposit),
+    finalPrice: pricing.quote,
+    finalPriceText: String(pricing.quote),
+    balanceAmount: pricing.balance,
+    additionalQuoteAmount: pricing.additionalQuote,
+    totalAmount: pricing.total,
+  };
+}
+
+export function getQueuePositionShifts(items: Commission[], month: string, position: number, excludedId?: string) {
+  if (!month || position < 1) return [];
+  return items
+    .filter((item) => item.id !== excludedId && item.queueMonth === month && item.queuePosition >= position)
+    .sort((a, b) => b.queuePosition - a.queuePosition || b.createdAt - a.createdAt)
+    .map((item) => ({ id: item.id, queuePosition: item.queuePosition + 1 }));
 }
 
 export function displayPrice(commission: Commission) {
