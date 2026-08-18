@@ -13,6 +13,8 @@ const menuItems: { id: WorkspaceView; label: string; icon: typeof LayoutDashboar
   { id: "settings", label: "丹青設案", icon: Settings2 },
 ];
 
+const titleIconSrc = `${import.meta.env.BASE_URL}hui-yue-title.svg`;
+
 export default function DashboardLayout({
   children,
   activeView,
@@ -38,7 +40,7 @@ function WorkspaceSidebar({ activeView, onViewChange, studioName }: { activeView
       <SidebarHeader className="h-24 px-3 py-4 group-data-[collapsible=icon]:px-2">
         <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
           <button onClick={toggleSidebar} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e9eee8] text-[#466a57] transition hover:bg-[#dbe6dc]" aria-label="收合導覽"><PanelLeft className="h-4 w-4" /></button>
-          {!collapsed && <div className="flex items-center gap-2"><img src="/hui-yue-title.svg" className="h-7 w-7" alt="繪月錄圖示" /><div><p className="font-display text-xl font-semibold tracking-tight text-[#294a3a]">繪月錄</p><p className="text-[10px] tracking-[0.18em] text-[#9a8574]">PAINTING LEDGER</p></div></div>}
+          {!collapsed && <div className="flex items-center gap-2"><img src={titleIconSrc} className="h-7 w-7" alt="繪月錄圖示" /><div><p className="font-display text-xl font-semibold tracking-tight text-[#294a3a]">繪月錄</p><p className="text-[10px] tracking-[0.18em] text-[#9a8574]">PAINTING LEDGER</p></div></div>}
         </div>
       </SidebarHeader>
       <SidebarContent className="px-2">
@@ -49,7 +51,7 @@ function WorkspaceSidebar({ activeView, onViewChange, studioName }: { activeView
       </SidebarContent>
       <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-2">
         <div className="rounded-2xl bg-[#eef1e9] p-2 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
-          <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"><img src="/hui-yue-title.svg" className="h-9 w-9 shrink-0 rounded-xl border border-[#d8e1d8] bg-[#dce8dd] p-1.5" alt="繪月錄圖示" /><div className="min-w-0 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold text-[#405748]">{studioName || "繪月錄"}</p><p className="truncate text-[10px] text-[#819082]">{user?.email ?? "Firebase 帳號"}</p></div></div>
+          <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center"><img src={titleIconSrc} className="h-9 w-9 shrink-0 rounded-xl border border-[#d8e1d8] bg-[#dce8dd] p-1.5" alt="繪月錄圖示" /><div className="min-w-0 group-data-[collapsible=icon]:hidden"><p className="truncate text-xs font-semibold text-[#405748]">{studioName || "繪月錄"}</p><p className="truncate text-[10px] text-[#819082]">{user?.email ?? "Firebase 帳號"}</p></div></div>
           {!collapsed && <Button variant="ghost" size="sm" onClick={() => void signOut()} className="mt-2 h-8 w-full justify-start text-xs text-[#92635c] hover:bg-[#f8e9e5] hover:text-[#82514a]"><LogOut className="mr-1.5 h-3.5 w-3.5" />登出</Button>}
         </div>
       </SidebarFooter>
