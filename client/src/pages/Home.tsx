@@ -85,7 +85,7 @@ function CommissionWorkspace() {
   const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : "丹青設案";
 
   return <DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName} avatarUrl={studio.settings.avatarUrl}>
-    {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} uploading={studio.uploading} error={studio.error} onSave={studio.saveSettings} onUploadAvatar={studio.uploadAvatar} /> : <main className="min-h-[calc(100vh-70px)] bg-[#faf7f2] px-4 py-5 sm:px-7 sm:py-7">
+    {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} uploading={studio.uploading} uploadProgress={studio.uploadProgress} uploadStage={studio.uploadStage} error={studio.error} onSave={studio.saveSettings} onUploadAvatar={studio.uploadAvatar} /> : <main className="min-h-[calc(100vh-70px)] bg-[#faf7f2] px-4 py-5 sm:px-7 sm:py-7">
       {error && <div className="mb-5 rounded-2xl border border-[#efc8ba] bg-[#fff4ef] px-4 py-3 text-sm text-[#8b4d39]">Firebase 資料同步提示：{error}</div>}
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#294335]">{heading}</p><p className="mt-2 text-sm text-[#88786b]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>
