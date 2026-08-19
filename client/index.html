@@ -8,6 +8,22 @@
     <meta name="description" content="繪月錄：離線優先的繪師委託管理工作台。" />
     <link rel="icon" href="%BASE_URL%hui-yue-title.svg" type="image/svg+xml" />
     <title>繪月錄</title>
+    <script>
+      (function () {
+        var isResizeObserverNotice = function (message) {
+          return typeof message === "string" && /ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i.test(message);
+        };
+        window.addEventListener("error", function (event) {
+          if (isResizeObserverNotice(event.message)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+        window.onerror = function (message) {
+          return isResizeObserverNotice(typeof message === "string" ? message : "");
+        };
+      })();
+    </script>
   </head>
 
   <body>

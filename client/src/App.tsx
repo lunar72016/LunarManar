@@ -1,6 +1,4 @@
 import ErrorBoundary from "./components/ErrorBoundary";
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { FirebaseAuthProvider } from "./contexts/FirebaseAuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -12,10 +10,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <FirebaseAuthProvider>
-          <TooltipProvider>
-            <Toaster richColors position="top-right" />
-            {isShareRoute ? <ProgressPlaceholder /> : <Home />}
-          </TooltipProvider>
+          {isShareRoute ? <ProgressPlaceholder /> : <Home />}
         </FirebaseAuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

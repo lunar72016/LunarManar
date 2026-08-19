@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAutomaticPricing, createBlankCommission, displayPrice, getQueuePositionShifts, initialCommissions, statusMeta, withStatusTransition } from "./commission";
+import { addWeeks, applyAutomaticPricing, autoDetectRushLevel, countWorkdays, createArtworkItem, createBlankCommission, displayPrice, enableRushWithDefault, getAvailableFinishes, getAvailableScopes, getCommissionScheduleMonth, getDefaultScheduleWeekStart, getDeliveryTier, getLastQueuedWeek, getQueuePositionShifts, groupQueuedCommissionsByMonth, initialCommissions, isPrivacyReminderDue, prioritizeRecentCommissions, rushLevelOptions, shouldConvertReservation, sortCommissionsForSchedule, startOfWeek, statusMeta, weekLabel, withStatusTransition } from "./commission";
 import { defaultStudioSettings } from "./studioSettings";
 
 describe("commission domain model", () => {
@@ -23,6 +23,7 @@ describe("commission domain model", () => {
     expect(commission.statusHistory).toHaveLength(1);
     expect(commission.statusHistory[0]?.status).toBe("inquiry");
     expect(commission.depositState).toBe("unpaid");
+    expect(commission.additionalState).toBe("unrecorded");
   });
 
   it("defines the final delivery status for work completion", () => {
@@ -45,19 +46,19 @@ describe("commission domain model", () => {
     expect(reopened.completedAt).toBeNull();
   });
 
-  it("adds every selected range and finish combination, then applies only the highest selected multiplier", () => {
+  it("adds each artwork item independently and applies the minimum of the highest selected multiplier range", () => {
     const settings = defaultStudioSettings();
     settings.combinationPrices["胸像"]["一般"] = 1000;
-    settings.combinationPrices["胸像"]["精緻"] = 1400;
-    settings.combinationPrices["半身"]["一般"] = 1600;
     settings.combinationPrices["半身"]["精緻"] = 2100;
-    settings.rushMultipliers["高度加急"] = 1.5;
-    settings.licenseMultipliers.commercial = 1.25;
-    settings.licenseMultipliers.buyout = 2;
+    settings.rushMultiplierRanges["高度加急"] = { min: 1.3, max: 1.7 };
+    settings.licenseMultiplierRanges.commercial = { min: 1.25, max: 1.5 };
+    settings.licenseMultiplierRanges.buyout = { min: 1.8, max: 2.2 };
 
     const commission = createBlankCommission();
-    commission.artScopes = ["胸像", "半身"];
-    commission.finishLevels = ["一般", "精緻"];
+    commission.artworkItems = [
+      createArtworkItem({ artScope: "胸像", finishLevel: "一般" }),
+      createArtworkItem({ artScope: "半身", finishLevel: "精緻" }),
+    ];
     commission.isRush = true;
     commission.rushLevel = "高度加急";
     commission.licenses = ["commercial", "buyout"];
@@ -65,20 +66,73 @@ describe("commission domain model", () => {
     commission.additionalAmount = 500;
     const priced = applyAutomaticPricing(settings, commission);
 
-    expect(priced.basePriceMin).toBe(6100);
-    expect(priced.depositAmount).toBe(3050);
-    expect(priced.rushMultiplier).toBe(2);
-    expect(priced.finalPrice).toBe(6000);
-    expect(priced.balanceAmount).toBe(2950);
-    expect(priced.additionalQuoteAmount).toBe(1000);
-    expect(priced.totalAmount).toBe(7000);
+    expect(priced.basePriceMin).toBe(5580);
+    expect(priced.depositAmount).toBe(2790);
+    expect(priced.rushMultiplier).toBe(1.8);
+    expect(priced.finalPrice).toBe(5400);
+    expect(priced.balanceAmount).toBe(2610);
+    expect(priced.additionalQuoteAmount).toBe(900);
+    expect(priced.totalAmount).toBe(6300);
 
     const licenseOnly = createBlankCommission();
     licenseOnly.licenses = ["buyout"];
     licenseOnly.estimatedPrice = 1000;
     const licensePriced = applyAutomaticPricing(settings, licenseOnly);
-    expect(licensePriced.rushMultiplier).toBe(2);
-    expect(applyAutomaticPricing(settings, { ...licensePriced, rushMultiplier: 1.75 }).finalPrice).toBe(1750);
+    expect(licensePriced.rushMultiplier).toBe(1.8);
+    expect(applyAutomaticPricing(settings, { ...licensePriced, rushMultiplier: 2.1 }).finalPrice).toBe(2100);
+    expect(applyAutomaticPricing(settings, { ...licensePriced, rushMultiplier: 3 }).rushMultiplier).toBe(2.2);
+  });
+
+  it("multiplies each configured base price by the artwork item character count", () => {
+    const settings = defaultStudioSettings();
+    settings.combinationPrices["胸像"]["一般"] = 1000;
+    const commission = createBlankCommission();
+    commission.artworkItems = [createArtworkItem({ artScope: "胸像", finishLevel: "一般", characterCount: 3 })];
+
+    const priced = applyAutomaticPricing(settings, commission);
+    expect(priced.basePriceMin).toBe(3000);
+    expect(priced.depositAmount).toBe(1500);
+  });
+
+  it("only exposes scopes and finishes with an explicit configured price", () => {
+    const settings = defaultStudioSettings();
+    settings.combinationPrices["大頭"]["一般"] = 800;
+    settings.combinationPrices["Q版"]["線稿"] = 600;
+
+    expect(getAvailableScopes(settings)).toEqual(["大頭", "Q版"]);
+    expect(getAvailableFinishes(settings, "大頭")).toEqual(["一般"]);
+    expect(getAvailableFinishes(settings, "Q版")).toEqual(["線稿"]);
+  });
+
+  it("classifies a requested delivery date into the four rush guidance tiers", () => {
+    const now = new Date("2026-08-01T08:00:00Z").getTime();
+    expect(getDeliveryTier(now, now)).toBe("當天");
+    expect(getDeliveryTier(now + 86_400_000, now)).toBe("一週內");
+    expect(getDeliveryTier(now + 7 * 86_400_000, now)).toBe("一週內");
+    expect(getDeliveryTier(now + 30 * 86_400_000, now)).toBe("一個月內");
+    expect(getDeliveryTier(now + 31 * 86_400_000, now)).toBe("排單最後日期內");
+  });
+
+  it("shows a reminder once a selected privacy deadline arrives", () => {
+    const commission = createBlankCommission();
+    commission.privacyMode = "until";
+    commission.privacyUntil = 1_700_000_000_000;
+
+    expect(isPrivacyReminderDue(commission, 1_699_999_999_999)).toBe(false);
+    expect(isPrivacyReminderDue(commission, 1_700_000_000_000)).toBe(true);
+  });
+
+  it("places rush or close-due commissions ahead of ordinary queued work", () => {
+    const ordinary = { ...createBlankCommission(), id: "ordinary", status: "queued" as const, queuePosition: 1, dueDate: null, createdAt: 1 };
+    const closeDue = { ...createBlankCommission(), id: "close", status: "queued" as const, queuePosition: 3, dueDate: 1_700_086_400_000, createdAt: 3 };
+    const markedRush = { ...createBlankCommission(), id: "rush", status: "queued" as const, queuePosition: 2, isRush: true, createdAt: 2 };
+
+    expect(prioritizeRecentCommissions([ordinary, closeDue, markedRush], 1_700_000_000_000).map((item) => item.id)).toEqual(["close", "rush", "ordinary"]);
+  });
+
+  it("automatically selects the default rush tier when rush is enabled", () => {
+    const rushed = enableRushWithDefault({ ...createBlankCommission(), rushLevel: "極限加急" });
+    expect(rushed).toMatchObject({ isRush: true, rushLevel: rushLevelOptions[0] });
   });
 
   it("shifts existing commissions back when a duplicate monthly position is saved", () => {
@@ -90,5 +144,61 @@ describe("commission domain model", () => {
       { id: "second", queuePosition: 3 },
       { id: "first", queuePosition: 2 },
     ]);
+  });
+
+  it("calculates stable weekly labels and defaults new work to two weeks after the last ordinary queue", () => {
+    const augustFirstWeek = startOfWeek(Date.UTC(2026, 7, 4));
+    const septemberSecondWeek = startOfWeek(Date.UTC(2026, 8, 8));
+    const queued = { ...createBlankCommission(), scheduleWeekStart: septemberSecondWeek, scheduleType: "queued" as const };
+    const reservation = { ...createBlankCommission(), scheduleWeekStart: addWeeks(septemberSecondWeek, 4), scheduleType: "reservation" as const };
+
+    expect(weekLabel(augustFirstWeek)).toBe("8月第一週");
+    expect(getLastQueuedWeek([queued, reservation])).toBe(septemberSecondWeek);
+    expect(getDefaultScheduleWeekStart([queued, reservation])).toBe(addWeeks(septemberSecondWeek, 2));
+  });
+
+  it("preserves a manually selected queue month and otherwise derives it from the scheduled week", () => {
+    const octoberWeek = startOfWeek(Date.UTC(2026, 9, 12));
+    expect(getCommissionScheduleMonth({ ...createBlankCommission(), queueMonth: "2026-09", queueMonthManual: true, scheduleWeekStart: octoberWeek })).toBe("2026-09");
+    expect(getCommissionScheduleMonth({ ...createBlankCommission(), queueMonth: "2026-08", queueMonthManual: false, scheduleWeekStart: octoberWeek })).toBe("2026-10");
+  });
+
+  it("groups August, September, and October work in their selected schedule months", () => {
+    const august = { ...createBlankCommission(), id: "august", queueMonth: "2026-08", queueMonthManual: true };
+    const september = { ...createBlankCommission(), id: "september", queueMonth: "2026-09", queueMonthManual: true };
+    const october = { ...createBlankCommission(), id: "october", queueMonth: "2026-10", queueMonthManual: true };
+
+    expect(Object.keys(groupQueuedCommissionsByMonth([august, september, october])).sort()).toEqual(["2026-08", "2026-09", "2026-10"]);
+  });
+
+  it("honors manually entered monthly queue positions before creation time", () => {
+    const laterCreatedFirst = { ...createBlankCommission(), id: "first", queueMonth: "2026-10", queueMonthManual: true, queuePosition: 1, createdAt: 30 };
+    const earlierCreatedSecond = { ...createBlankCommission(), id: "second", queueMonth: "2026-10", queueMonthManual: true, queuePosition: 2, createdAt: 10 };
+
+    expect(sortCommissionsForSchedule([earlierCreatedSecond, laterCreatedFirst]).map((item) => item.id)).toEqual(["first", "second"]);
+  });
+
+  it("only converts a reservation once ordinary queue has reached the prior week", () => {
+    const queuedWeek = startOfWeek(Date.UTC(2026, 8, 7));
+    const reservation = { ...createBlankCommission(), scheduleType: "reservation" as const, scheduleWeekStart: addWeeks(queuedWeek, 2) };
+
+    expect(shouldConvertReservation(reservation, queuedWeek)).toBe(false);
+    expect(shouldConvertReservation(reservation, addWeeks(queuedWeek, 1))).toBe(true);
+  });
+
+  it("counts Monday to Friday workdays inclusively without weekends", () => {
+    expect(countWorkdays(Date.UTC(2026, 7, 3), Date.UTC(2026, 7, 9))).toBe(5);
+    expect(countWorkdays(Date.UTC(2026, 7, 8), Date.UTC(2026, 7, 9))).toBe(0);
+  });
+
+  it("derives rush levels from a due date and the final ordinary queue week", () => {
+    const now = Date.UTC(2026, 7, 1);
+    const lastQueuedWeek = startOfWeek(Date.UTC(2026, 8, 14));
+
+    expect(autoDetectRushLevel(now, lastQueuedWeek, now)).toBe("極限加急");
+    expect(autoDetectRushLevel(now + 7 * 86_400_000, lastQueuedWeek, now)).toBe("高度加急");
+    expect(autoDetectRushLevel(now + 8 * 86_400_000, lastQueuedWeek, now)).toBe("中度加急");
+    expect(autoDetectRushLevel(now + 40 * 86_400_000, lastQueuedWeek, now)).toBe("一般加急");
+    expect(autoDetectRushLevel(now + 70 * 86_400_000, lastQueuedWeek, now)).toBeNull();
   });
 });

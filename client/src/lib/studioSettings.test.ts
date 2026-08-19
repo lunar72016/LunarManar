@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { artScopeOptions, finishLevelOptions } from "./commission";
 import { defaultStudioSettings, normalizeStudioSettings } from "./studioSettings";
 
 describe("studio settings without avatar storage", () => {
@@ -12,11 +13,20 @@ describe("studio settings without avatar storage", () => {
   it("keeps price and multiplier settings when normalizing existing Firestore data", () => {
     const settings = normalizeStudioSettings({
       studioName: "月下畫案",
-      rushMultipliers: { "一般加急": 1.25 },
+      rushMultiplierRanges: { "一般加急": { min: 1.25, max: 1.5 } },
     });
 
     expect(settings.studioName).toBe("月下畫案");
-    expect(settings.rushMultipliers["一般加急"]).toBe(1.25);
-    expect(settings.licenseMultipliers.buyout).toBe(1);
+    expect(settings.rushMultiplierRanges["一般加急"]).toEqual({ min: 1.25, max: 1.5 });
+    expect(settings.licenseMultiplierRanges.buyout).toEqual({ min: 1, max: 1 });
+  });
+
+  it("uses the revised art options and starts every unpriced combination as unavailable", () => {
+    const settings = defaultStudioSettings();
+
+    expect(finishLevelOptions).toContain("線稿");
+    expect(finishLevelOptions).not.toContain("一般上色");
+    expect(artScopeOptions).toEqual(["大頭", "胸像", "半身", "全身", "服設", "特寫-眼睛", "特寫-手", "Q版"]);
+    expect(settings.combinationPrices["大頭"]["一般"]).toBeNull();
   });
 });

@@ -1,36 +1,42 @@
-import { artScopeOptions, finishLevelOptions } from "@/lib/commission";
-import type { LicenseOption } from "@/lib/commission";
+import { artScopeOptions, finishLevelOptions, type LicenseOption } from "@/lib/commission";
 
+export type MultiplierRange = { min: number; max: number };
 export type StudioSettings = {
   studioName: string;
-  combinationPrices: Record<string, Record<string, number>>;
-  rushMultipliers: Record<string, number>;
-  licenseMultipliers: Record<LicenseOption, number>;
+  combinationPrices: Record<string, Record<string, number | null>>;
+  rushMultiplierRanges: Record<string, MultiplierRange>;
+  licenseMultiplierRanges: Record<LicenseOption, MultiplierRange>;
   updatedAt: number;
 };
 
-function createCombinationPrices() {
-  return Object.fromEntries(artScopeOptions.map((scope) => [scope, Object.fromEntries(finishLevelOptions.map((finish) => [finish, 0]))]));
-}
+const defaultRange = (): MultiplierRange => ({ min: 1, max: 1 });
+const createCombinationPrices = () => Object.fromEntries(artScopeOptions.map((scope) => [scope, Object.fromEntries(finishLevelOptions.map((finish) => [finish, null]))]));
 
 export const defaultStudioSettings = (): StudioSettings => ({
   studioName: "繪月錄",
   combinationPrices: createCombinationPrices(),
-  rushMultipliers: { "一般加急": 1, "中度加急": 1, "高度加急": 1, "極限加急": 1 },
-  licenseMultipliers: { commercial: 1, promotion: 1, buyout: 1 },
+  rushMultiplierRanges: { "一般加急": defaultRange(), "中度加急": defaultRange(), "高度加急": defaultRange(), "極限加急": defaultRange() },
+  licenseMultiplierRanges: { commercial: defaultRange(), promotion: defaultRange(), buyout: defaultRange() },
   updatedAt: Date.now(),
 });
 
-export function normalizeStudioSettings(value: Partial<StudioSettings> | undefined) {
+function normalizeRange(value: MultiplierRange | number | undefined): MultiplierRange {
+  if (typeof value === "number") return { min: value, max: value };
+  const min = Number(value?.min);
+  const max = Number(value?.max);
+  return { min: Number.isFinite(min) && min >= 1 ? min : 1, max: Number.isFinite(max) && max >= min ? max : Number.isFinite(min) && min >= 1 ? min : 1 };
+}
+
+export function normalizeStudioSettings(value: Partial<StudioSettings> & { rushMultipliers?: Record<string, number>; licenseMultipliers?: Record<LicenseOption, number> } | undefined): StudioSettings {
   const fallback = defaultStudioSettings();
   return {
     ...fallback,
     ...value,
-    combinationPrices: Object.fromEntries(artScopeOptions.map((scope) => [
-      scope,
-      Object.fromEntries(finishLevelOptions.map((finish) => [finish, value?.combinationPrices?.[scope]?.[finish] ?? fallback.combinationPrices[scope][finish]])),
-    ])),
-    rushMultipliers: { ...fallback.rushMultipliers, ...value?.rushMultipliers },
-    licenseMultipliers: { ...fallback.licenseMultipliers, ...value?.licenseMultipliers },
+    combinationPrices: Object.fromEntries(artScopeOptions.map((scope) => [scope, Object.fromEntries(finishLevelOptions.map((finish) => {
+      const current = value?.combinationPrices?.[scope]?.[finish];
+      return [finish, typeof current === "number" && current > 0 ? current : null];
+    }))])),
+    rushMultiplierRanges: Object.fromEntries(Object.keys(fallback.rushMultiplierRanges).map((key) => [key, normalizeRange(value?.rushMultiplierRanges?.[key] ?? value?.rushMultipliers?.[key])])),
+    licenseMultiplierRanges: Object.fromEntries((Object.keys(fallback.licenseMultiplierRanges) as LicenseOption[]).map((key) => [key, normalizeRange(value?.licenseMultiplierRanges?.[key] ?? value?.licenseMultipliers?.[key])])) as Record<LicenseOption, MultiplierRange>,
   };
 }
