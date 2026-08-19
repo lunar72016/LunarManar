@@ -399,6 +399,12 @@
   });
 
   window.addEventListener("error", function (event) {
+    // Chromium may emit this notification after it has already settled a
+    // layout pass. It is not an actionable application exception and is
+    // intentionally excluded from the preview error stream.
+    if (/ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i.test(event.message || "")) {
+      return;
+    }
     store.consoleLogs.push({
       timestamp: Date.now(),
       level: "ERROR",
