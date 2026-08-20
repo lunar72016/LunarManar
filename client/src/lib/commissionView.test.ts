@@ -12,7 +12,7 @@ describe("commission view mode", () => {
 
     expect(getViewRequirementRows(commission)).toEqual([
       expect.objectContaining({ ordinal: 1, summary: "2 人 · 全身 · 精緻", note: "主畫面" }),
-      expect.objectContaining({ ordinal: 2, summary: "2 人 · Q版（2頭身） · 塗鴉", note: "右上角" }),
+      expect.objectContaining({ ordinal: 2, summary: "2 人 · Q版 · 2頭身", note: "右上角" }),
     ]);
   });
 

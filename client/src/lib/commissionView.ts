@@ -5,7 +5,7 @@ export function getViewRequirementRows(commission: Commission) {
     return commission.artworkItems.map((item, index) => ({
       id: item.id,
       ordinal: index + 1,
-      summary: `${item.characterCount} 人 · ${item.artScope}${item.artScope === "Q版" && item.qSize ? `（${item.qSize}）` : ""} · ${item.finishLevel}`,
+      summary: item.artScope === "Q版" ? `${item.characterCount} 人 · Q版 · ${item.qSize ?? "未選規格"}` : `${item.characterCount} 人 · ${item.artScope} · ${item.finishLevel}`,
       note: item.note,
     }));
   }

@@ -1,9 +1,11 @@
-import { artScopeOptions, finishLevelOptions, type LicenseOption } from "@/lib/commission";
+import { artScopeOptions, finishLevelOptions, qSizeOptions, type LicenseOption, type QSize } from "@/lib/commission";
 
 export type MultiplierRange = { min: number; max: number };
 export type StudioSettings = {
   studioName: string;
   combinationPrices: Record<string, Record<string, number | null>>;
+  /** Q 版不沿用精緻度，而是以表情貼、2 頭身、2.5 頭身分別定價。 */
+  qVariantPrices: Record<QSize, number | null>;
   rushMultiplierRanges: Record<string, MultiplierRange>;
   licenseMultiplierRanges: Record<LicenseOption, MultiplierRange>;
   updatedAt: number;
@@ -15,6 +17,7 @@ const createCombinationPrices = () => Object.fromEntries(artScopeOptions.map((sc
 export const defaultStudioSettings = (): StudioSettings => ({
   studioName: "繪月錄",
   combinationPrices: createCombinationPrices(),
+  qVariantPrices: Object.fromEntries(qSizeOptions.map((variant) => [variant, null])) as Record<QSize, number | null>,
   rushMultiplierRanges: { "一般加急": defaultRange(), "中度加急": defaultRange(), "高度加急": defaultRange(), "極限加急": defaultRange() },
   licenseMultiplierRanges: { commercial: defaultRange(), promotion: defaultRange(), buyout: defaultRange() },
   updatedAt: Date.now(),
@@ -36,6 +39,10 @@ export function normalizeStudioSettings(value: Partial<StudioSettings> & { rushM
       const current = value?.combinationPrices?.[scope]?.[finish];
       return [finish, typeof current === "number" && current > 0 ? current : null];
     }))])),
+    qVariantPrices: Object.fromEntries(qSizeOptions.map((variant) => {
+      const current = value?.qVariantPrices?.[variant];
+      return [variant, typeof current === "number" && current > 0 ? current : null];
+    })) as Record<QSize, number | null>,
     rushMultiplierRanges: Object.fromEntries(Object.keys(fallback.rushMultiplierRanges).map((key) => [key, normalizeRange(value?.rushMultiplierRanges?.[key] ?? value?.rushMultipliers?.[key])])),
     licenseMultiplierRanges: Object.fromEntries((Object.keys(fallback.licenseMultiplierRanges) as LicenseOption[]).map((key) => [key, normalizeRange(value?.licenseMultiplierRanges?.[key] ?? value?.licenseMultipliers?.[key])])) as Record<LicenseOption, MultiplierRange>,
   };

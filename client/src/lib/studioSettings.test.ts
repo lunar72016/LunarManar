@@ -21,12 +21,13 @@ describe("studio settings without avatar storage", () => {
     expect(settings.licenseMultiplierRanges.buyout).toEqual({ min: 1, max: 1 });
   });
 
-  it("uses the revised art options and starts every unpriced combination as unavailable", () => {
+  it("uses the revised art options and starts standard combinations and Q 版規格 as unavailable", () => {
     const settings = defaultStudioSettings();
 
     expect(finishLevelOptions).toContain("線稿");
     expect(finishLevelOptions).not.toContain("一般上色");
     expect(artScopeOptions).toEqual(["大頭", "胸像", "半身", "全身", "服設", "特寫-眼睛", "特寫-手", "Q版"]);
     expect(settings.combinationPrices["大頭"]["一般"]).toBeNull();
+    expect(settings.qVariantPrices).toEqual({ "表情貼": null, "2頭身": null, "2.5頭身": null });
   });
 });

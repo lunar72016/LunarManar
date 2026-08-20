@@ -1,4 +1,5 @@
-import { Commission, CommissionStatus, getCommissionScheduleMonth, getCommissionScheduleWeek, getDefaultScheduleWeekStart, getLastQueuedWeek, getScheduleMonthFromWeek, initialCommissions, shouldConvertReservation, sortCommissionsForSchedule, withStatusTransition } from "@/lib/commission";
+import { Commission, CommissionStatus, archiveCommission as archiveCommissionRecord, getCommissionScheduleWeek, getLastQueuedWeek, getScheduleMonthFromWeek, initialCommissions, restoreArchivedCommission, shouldConvertReservation, sortCommissionsForSchedule, withStatusTransition } from "@/lib/commission";
+import { persistFirestoreWrite, persistOptimisticWrite, prepareCommissionSave, stripUndefined } from "@/lib/commissionPersistence";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
 import { collection, deleteDoc, doc, onSnapshot, setDoc, updateDoc, writeBatch } from "firebase/firestore";
@@ -22,8 +23,12 @@ function normalizeCommission(item: Commission): Commission {
     queueMonth: getScheduleMonthFromWeek(scheduleWeekStart, item.queueMonth),
     queueMonthManual: false,
     estimatedWorkdays: item.estimatedWorkdays ?? null,
+    rushRequestedAt: item.rushRequestedAt ?? null,
     additionalState: item.additionalState ?? (item.additionalAmount && item.additionalAmount !== 0 ? "unpaid" : "unrecorded"),
     additionalPaidAt: item.additionalPaidAt ?? null,
+    rawBasePrice: item.rawBasePrice ?? null,
+    archivedAt: item.archivedAt ?? null,
+    archivedFromStatus: item.archivedFromStatus ?? null,
   };
 }
 
@@ -80,7 +85,7 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
     const next = { ...normalizeCommission(commission), id: reference.id, updatedAt: Date.now() };
     setCommissions((current) => orderCommissions([...current, next]));
     setSyncState("pending");
-    void setDoc(reference, next).catch(reportWriteFailure);
+    await persistFirestoreWrite(setDoc(reference, stripUndefined(next)), reportWriteFailure);
     return next;
   }, [reportWriteFailure, user?.uid]);
 
@@ -89,34 +94,21 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
     if (!db || !user) throw new Error("目前無法連接資料庫");
     const commissionCollection = collection(db, "artists", user.uid, "commissions");
     const reference = isNew ? doc(commissionCollection) : doc(db, "artists", user.uid, "commissions", commission.id);
-    const scheduleWeekStart = getCommissionScheduleWeek(commission) ?? getDefaultScheduleWeekStart(commissions);
-    const lastQueuedWeek = getLastQueuedWeek(commissions.filter((item) => item.id !== commission.id));
-    const requestedType = commission.scheduleType ?? "queued";
-    const scheduleType = requestedType === "reservation" && shouldConvertReservation({ ...commission, scheduleType: requestedType, scheduleWeekStart }, lastQueuedWeek) ? "queued" : requestedType;
-    const queueMonth = getScheduleMonthFromWeek(scheduleWeekStart, commission.queueMonth);
-    const queuePosition = scheduleType === "queued" ? commission.queuePosition > 0 ? commission.queuePosition : commissions.filter((item) => item.id !== commission.id && item.scheduleType === "queued" && getCommissionScheduleMonth(item) === queueMonth).length + 1 : 0;
-    const next: Commission = {
-      ...normalizeCommission(commission),
-      id: reference.id,
-      scheduleWeekStart,
-      scheduleType,
-      queueMonth,
-      queueMonthManual: false,
-      queuePosition,
-      updatedAt: Date.now(),
-    };
+    const next = prepareCommissionSave(normalizeCommission(commission), commissions, reference.id);
+    const previous = commissions;
     setCommissions((current) => orderCommissions([...current.filter((item) => item.id !== next.id), next]));
     setSyncState("pending");
-    void setDoc(reference, next).catch(reportWriteFailure);
+    await persistOptimisticWrite(setDoc(reference, stripUndefined(next)), previous, setCommissions, reportWriteFailure);
     return next;
   }, [commissions, reportWriteFailure, user?.uid]);
 
   const updateCommission = useCallback(async (id: string, changes: Partial<Commission>) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
+    const previous = commissions;
     setCommissions((current) => orderCommissions(current.map((item) => item.id === id ? normalizeCommission({ ...item, ...changes, updatedAt: Date.now() }) : item)));
     setSyncState("pending");
-    void updateDoc(doc(db, "artists", user.uid, "commissions", id), { ...changes, updatedAt: Date.now() }).catch(reportWriteFailure);
+    await persistOptimisticWrite(updateDoc(doc(db, "artists", user.uid, "commissions", id), stripUndefined({ ...changes, updatedAt: Date.now() })), previous, setCommissions, reportWriteFailure);
   }, [reportWriteFailure, user?.uid]);
 
   const deleteCommission = useCallback(async (id: string) => {
@@ -129,6 +121,14 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
 
   const changeStatus = useCallback(async (commission: Commission, nextStatus: CommissionStatus, note?: string) => {
     await updateCommission(commission.id, withStatusTransition(commission, nextStatus, note));
+  }, [updateCommission]);
+
+  const archiveCommission = useCallback(async (commission: Commission) => {
+    await updateCommission(commission.id, archiveCommissionRecord(commission));
+  }, [updateCommission]);
+
+  const restoreCommission = useCallback(async (commission: Commission) => {
+    await updateCommission(commission.id, restoreArchivedCommission(commission));
   }, [updateCommission]);
 
   const importInitialRecords = useCallback(async () => {
@@ -146,5 +146,5 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
     void batch.commit().catch(reportWriteFailure);
   }, [reportWriteFailure, user?.uid]);
 
-  return useMemo(() => ({ commissions, syncState, error, createCommission, saveQueuedCommission, updateCommission, deleteCommission, changeStatus, importInitialRecords }), [changeStatus, commissions, createCommission, deleteCommission, error, importInitialRecords, saveQueuedCommission, syncState, updateCommission]);
+  return useMemo(() => ({ commissions, syncState, error, createCommission, saveQueuedCommission, updateCommission, deleteCommission, changeStatus, archiveCommission, restoreCommission, importInitialRecords }), [archiveCommission, changeStatus, commissions, createCommission, deleteCommission, error, importInitialRecords, restoreCommission, saveQueuedCommission, syncState, updateCommission]);
 }

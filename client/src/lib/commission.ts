@@ -1,6 +1,6 @@
 import type { MultiplierRange, StudioSettings } from "@/lib/studioSettings";
 
-export const commissionStatuses = ["inquiry", "confirmed", "awaiting_deposit", "queued", "sketching", "sketch_confirmed", "awaiting_balance", "finalizing", "completed"] as const;
+export const commissionStatuses = ["inquiry", "confirmed", "awaiting_deposit", "queued", "sketching", "sketch_confirmed", "awaiting_balance", "finalizing", "completed", "archived"] as const;
 export type CommissionStatus = (typeof commissionStatuses)[number];
 export type PaymentState = "paid" | "unpaid" | "unrecorded";
 export type LicenseOption = "commercial" | "promotion" | "buyout";
@@ -11,7 +11,7 @@ export type ScheduleType = "queued" | "reservation";
 export const contactChannels = ["Facebook", "電子郵件", "Threads", "LINE", "Discord", "其他"];
 export const artScopeOptions = ["大頭", "胸像", "半身", "全身", "服設", "特寫-眼睛", "特寫-手", "Q版"] as const;
 export const finishLevelOptions = ["塗鴉", "鋪色", "重點色", "一般", "精緻", "寫實", "線稿"] as const;
-export const qSizeOptions = ["2頭身", "2.5頭身"] as const;
+export const qSizeOptions = ["表情貼", "2頭身", "2.5頭身"] as const;
 export const rushLevelOptions = ["一般加急", "中度加急", "高度加急", "極限加急"] as const;
 
 export type ArtScope = (typeof artScopeOptions)[number];
@@ -66,10 +66,14 @@ export type Commission = {
   rushMultiplier: number | null;
   deliveryPreference: DeliveryPreference;
   dueDate: number | null;
+  /** 委託人提出加急的實際日期；此日作為固定的急件層級判定基準。 */
+  rushRequestedAt: number | null;
   privacyMode: PrivacyMode;
   privacyUntil: number | null;
   basePriceMin: number | null;
   basePriceMax: number | null;
+  /** 組合底價或手動底價的未套用倍率值，避免滑桿調整時累積相乘。 */
+  rawBasePrice: number | null;
   basePriceText: string;
   depositAmount: number | null;
   depositText: string;
@@ -94,6 +98,10 @@ export type Commission = {
   sketchConfirmedAt: number | null;
   revisionNote: string;
   completedAt: number | null;
+  /** 封存案件保留於資料庫，但不再納入工作台與排單。 */
+  archivedAt: number | null;
+  /** 封存前的進度，用於重新啟用時回復原本流程。 */
+  archivedFromStatus: Exclude<CommissionStatus, "archived"> | null;
   /** Reserved for the future public client form and progress portal. */
   clientPortal: { enabled: boolean; accessTokenHash: string | null; expiresAt: number | null; referenceFiles: string[] };
   shareEnabled: boolean;
@@ -114,9 +122,44 @@ export const statusMeta: Record<CommissionStatus, { label: string; tone: string 
   awaiting_balance: { label: "等待尾款", tone: "bg-rose-50 text-rose-700 border-rose-200" },
   finalizing: { label: "完稿製作", tone: "bg-teal-50 text-teal-700 border-teal-200" },
   completed: { label: "完稿", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  archived: { label: "已封存", tone: "bg-stone-100 text-stone-600 border-stone-200" },
 };
 
 const DAY_MS = 86_400_000;
+
+/** 以使用者所在時區固定輸出西元年／月／日，避免瀏覽器語系差異影響業務日期呈現。 */
+export function formatDisplayDate(value: number | null | undefined) {
+  if (!value) return "未設定";
+  const date = new Date(value);
+  return `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, "0")}月${String(date.getDate()).padStart(2, "0")}日`;
+}
+
+/** 日期選擇欄位的簡潔格式；未選取時顯示固定提示。 */
+export function formatDateInput(value: number | null | undefined) {
+  if (!value) return "yyyy/mm/dd";
+  const date = new Date(value);
+  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** 解析西元 YYYY年MM月DD日、YYYY/MM/DD 或 YYYY-MM-DD，無效日期回傳 null。 */
+export function parseGregorianDate(value: string, endOfDay = false) {
+  const match = value.trim().match(/^(\d{4})\s*(?:年|[\/-])\s*(\d{1,2})\s*(?:月|[\/-])\s*(\d{1,2})\s*(?:日)?$/);
+  if (!match) return null;
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText); const month = Number(monthText); const day = Number(dayText);
+  const date = new Date(year, month - 1, day, endOfDay ? 23 : 12, endOfDay ? 59 : 0, endOfDay ? 59 : 0, 0);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date.getTime() : null;
+}
+
+/** 僅比較本地曆日，避免同日不同時刻影響交稿與申請日的邊界判斷。 */
+export function isDateAfter(value: number | null | undefined, limit: number | null | undefined) {
+  if (!value || !limit) return false;
+  const toDayKey = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+  };
+  return toDayKey(value) > toDayKey(limit);
+}
 
 /** 將任意日期歸到該週星期一 00:00 UTC。 */
 export function startOfWeek(value = Date.now()) {
@@ -176,26 +219,26 @@ export function sortCommissionsForSchedule(items: Commission[]) {
 
 /** 僅分組一般排單；預約單由呼叫端獨立處理。 */
 export function groupQueuedCommissionsByMonth(items: Commission[]) {
-  return items.filter((item) => item.scheduleType !== "reservation").reduce<Record<string, Commission[]>>((groups, item) => {
+  return items.filter((item) => item.status !== "archived" && !item.isRush && item.scheduleType !== "reservation").reduce<Record<string, Commission[]>>((groups, item) => {
     const month = getCommissionScheduleMonth(item);
     groups[month] = [...(groups[month] ?? []), item];
     return groups;
   }, {});
 }
 
-export function getLastQueuedWeek(commissions: Pick<Commission, "scheduleWeekStart" | "queueMonth" | "scheduleType">[]) {
-  const weeks = commissions.filter((commission) => (commission.scheduleType ?? "queued") === "queued").map(getCommissionScheduleWeek).filter((week): week is number => week !== null);
+export function getLastQueuedWeek(commissions: (Pick<Commission, "scheduleWeekStart" | "queueMonth" | "scheduleType"> & Partial<Pick<Commission, "status" | "isRush">>)[]) {
+  const weeks = commissions.filter((commission) => commission.status !== "archived" && !commission.isRush && (commission.scheduleType ?? "queued") === "queued").map(getCommissionScheduleWeek).filter((week): week is number => week !== null);
   return weeks.length ? Math.max(...weeks) : null;
 }
 
-export function getDefaultScheduleWeekStart(commissions: Pick<Commission, "scheduleWeekStart" | "queueMonth" | "scheduleType">[], now = Date.now()) {
+export function getDefaultScheduleWeekStart(commissions: (Pick<Commission, "scheduleWeekStart" | "queueMonth" | "scheduleType"> & Partial<Pick<Commission, "isRush">>)[], now = Date.now()) {
   return addWeeks(getLastQueuedWeek(commissions) ?? startOfWeek(now), 2);
 }
 
 /** 當一般排單已抵達預約前一週，該預約即自動列入一般排單。 */
-export function shouldConvertReservation(commission: Pick<Commission, "scheduleType" | "scheduleWeekStart" | "queueMonth">, lastQueuedWeek: number | null) {
+export function shouldConvertReservation(commission: Pick<Commission, "scheduleType" | "scheduleWeekStart" | "queueMonth"> & Partial<Pick<Commission, "status">>, lastQueuedWeek: number | null) {
   const reservationWeek = getCommissionScheduleWeek(commission);
-  return commission.scheduleType === "reservation" && reservationWeek !== null && lastQueuedWeek !== null && reservationWeek <= addWeeks(lastQueuedWeek, 1);
+  return commission.status !== "archived" && commission.scheduleType === "reservation" && reservationWeek !== null && lastQueuedWeek !== null && reservationWeek <= addWeeks(lastQueuedWeek, 1);
 }
 
 /** 由指定交稿日與最後一般排單週次推導加急層級。 */
@@ -209,6 +252,12 @@ export function autoDetectRushLevel(dueDate: number | null, lastQueuedWeek: numb
   if (daysUntilDue <= 30) return "中度加急";
   const finalQueuedDay = lastQueuedWeek === null ? null : addWeeks(lastQueuedWeek, 1) - DAY_MS;
   return finalQueuedDay !== null && due.getTime() <= finalQueuedDay ? "一般加急" : null;
+}
+
+/** 依加急申請日判定並固定保存急件層級；一般欄位編輯不應呼叫此函式。 */
+export function applyRushDecision(commission: Commission, lastQueuedWeek: number | null, rushRequestedAt = commission.rushRequestedAt ?? Date.now()) {
+  const rushLevel = autoDetectRushLevel(commission.dueDate, lastQueuedWeek, rushRequestedAt);
+  return { ...commission, rushRequestedAt, isRush: Boolean(rushLevel), rushLevel: rushLevel ?? commission.rushLevel };
 }
 
 /** 計算兩個 UTC 日期間（含首尾）的週一至週五天數。 */
@@ -233,9 +282,9 @@ export const createBlankCommission = (): Commission => {
   return {
     id: "", orderCode: "", clientName: "", contactChannel: "Facebook", contactHandle: "", queueMonth: new Date().toISOString().slice(0, 7), queueMonthManual: false, queuePosition: 0, scheduleWeekStart: null, scheduleType: "queued", estimatedWorkdays: null,
     characterCount: 1, artScopes: [], customArtScope: "", finishLevels: [], artworkItems: [], hasBackground: false, backgroundNote: "", requirements: "", characterSettingNote: "", poseNote: "", costumeDesignNote: "", accessoryNote: "",
-    isRush: false, rushLevel: "一般加急", licenses: [], rushFee: null, rushMultiplier: null, deliveryPreference: "unspecified", dueDate: null, privacyMode: "open", privacyUntil: null,
-    basePriceMin: null, basePriceMax: null, basePriceText: "", depositAmount: null, depositText: "", finalPrice: null, finalPriceText: "", balanceAmount: null, estimatedPrice: null, additionalAmount: null, additionalQuoteAmount: null, totalAmount: null,
-    depositState: "unpaid", balanceState: "unpaid", additionalState: "unrecorded", depositPaidAt: null, balancePaidAt: null, additionalPaidAt: null, paymentMethod: "", paymentNote: "", status: "inquiry", statusHistory: [{ status: "inquiry", at: now }], sketchSentAt: null, sketchConfirmedAt: null, revisionNote: "", completedAt: null,
+    isRush: false, rushLevel: "一般加急", licenses: [], rushFee: null, rushMultiplier: null, deliveryPreference: "unspecified", dueDate: null, rushRequestedAt: null, privacyMode: "open", privacyUntil: null,
+    basePriceMin: null, basePriceMax: null, rawBasePrice: null, basePriceText: "", depositAmount: null, depositText: "", finalPrice: null, finalPriceText: "", balanceAmount: null, estimatedPrice: null, additionalAmount: null, additionalQuoteAmount: null, totalAmount: null,
+    depositState: "unpaid", balanceState: "unpaid", additionalState: "unrecorded", depositPaidAt: null, balancePaidAt: null, additionalPaidAt: null, paymentMethod: "", paymentNote: "", status: "inquiry", statusHistory: [{ status: "inquiry", at: now }], sketchSentAt: null, sketchConfirmedAt: null, revisionNote: "", completedAt: null, archivedAt: null, archivedFromStatus: null,
     clientPortal: { enabled: false, accessTokenHash: null, expiresAt: null, referenceFiles: [] }, shareEnabled: false, shareTokenHash: null, shareExpiresAt: null, sourceNote: "", createdAt: now, updatedAt: now,
   };
 };
@@ -265,12 +314,16 @@ export function getArtworkItems(commission: Commission): ArtworkItem[] {
 export function describeArtworkItems(commission: Commission) {
   const items = getArtworkItems(commission);
   if (!items.length) return `${commission.characterCount} 人 · ${commission.artScopes?.join("、") || "未填寫範圍"}${commission.finishLevels?.length ? ` · ${commission.finishLevels.join("、")}` : ""}`;
-  return items.map((item) => `${item.characterCount} 人 ${item.artScope}${item.artScope === "Q版" && item.qSize ? `（${item.qSize}）` : ""} · ${item.finishLevel}`).join(" ／ ");
+  return items.map((item) => item.artScope === "Q版" ? `${item.characterCount} 人 Q版 · ${item.qSize ?? "未選規格"}` : `${item.characterCount} 人 ${item.artScope} · ${item.finishLevel}`).join(" ／ ");
 }
 
-export function isPricedCombination(settings: StudioSettings, scope: ArtScope, finish: FinishLevel) { return (settings.combinationPrices[scope]?.[finish] ?? null) !== null; }
-export function getAvailableScopes(settings: StudioSettings) { return artScopeOptions.filter((scope) => finishLevelOptions.some((finish) => isPricedCombination(settings, scope, finish))); }
-export function getAvailableFinishes(settings: StudioSettings, scope: ArtScope) { return finishLevelOptions.filter((finish) => isPricedCombination(settings, scope, finish)); }
+export function getAvailableQSizes(settings: StudioSettings) { return qSizeOptions.filter((variant) => (settings.qVariantPrices?.[variant] ?? null) !== null); }
+export function isPricedCombination(settings: StudioSettings, scope: ArtScope, finish: FinishLevel) { return scope !== "Q版" && (settings.combinationPrices[scope]?.[finish] ?? null) !== null; }
+export function getAvailableScopes(settings: StudioSettings) {
+  const standardScopes = artScopeOptions.filter((scope) => scope !== "Q版" && finishLevelOptions.some((finish) => isPricedCombination(settings, scope, finish)));
+  return getAvailableQSizes(settings).length ? [...standardScopes, "Q版"] : standardScopes;
+}
+export function getAvailableFinishes(settings: StudioSettings, scope: ArtScope) { return scope === "Q版" ? [] : finishLevelOptions.filter((finish) => isPricedCombination(settings, scope, finish)); }
 
 export function getSelectedMultiplierRange(settings: StudioSettings, commission: Pick<Commission, "isRush" | "rushLevel" | "licenses">): MultiplierRange {
   const candidates: MultiplierRange[] = [{ min: 1, max: 1 }];
@@ -284,20 +337,26 @@ export function getMaximumMultiplier(settings: StudioSettings, commission: Pick<
 
 export function calculateCommissionPricing(settings: StudioSettings, commission: Commission) {
   const items = getArtworkItems(commission);
-  const calculatedBase = items.reduce((total, item) => total + (settings.combinationPrices[item.artScope]?.[item.finishLevel] ?? 0) * Math.max(1, item.characterCount || 1), 0);
+  const calculatedBase = items.reduce((total, item) => {
+    const unitPrice = item.artScope === "Q版" ? (settings.qVariantPrices?.[item.qSize ?? "2頭身"] ?? 0) : (settings.combinationPrices[item.artScope]?.[item.finishLevel] ?? 0);
+    return total + unitPrice * Math.max(1, item.characterCount || 1);
+  }, 0);
   const range = getSelectedMultiplierRange(settings, commission);
   const multiplier = Math.min(range.max, Math.max(range.min, commission.rushMultiplier ?? range.min));
-  const basePrice = roundCurrency((calculatedBase || (!items.length ? commission.basePriceMin ?? 0 : 0)) * multiplier);
-  const deposit = roundCurrency(basePrice / 2);
+  const fallbackRawBase = commission.rawBasePrice ?? (!items.length && commission.basePriceMin !== null ? commission.basePriceMin / Math.max(commission.rushMultiplier ?? 1, 1) : 0);
+  const rawBasePrice = calculatedBase || fallbackRawBase;
+  const basePrice = roundCurrency(rawBasePrice);
   const quote = roundCurrency((commission.estimatedPrice ?? 0) * multiplier);
-  const balance = roundCurrency(Math.max(quote - deposit, 0));
   const additionalQuote = roundCurrency((commission.additionalAmount ?? 0) * multiplier);
-  return { basePrice, deposit, defaultMultiplier: range.min, maxMultiplier: range.max, multiplier, quote, balance, additionalQuote, total: roundCurrency(quote + additionalQuote) };
+  const total = roundCurrency(quote + additionalQuote);
+  const deposit = roundCurrency(quote / 2);
+  const balance = roundCurrency(Math.max(total - deposit, 0));
+  return { rawBasePrice, basePrice, deposit, defaultMultiplier: range.min, maxMultiplier: range.max, multiplier, quote, balance, additionalQuote, total };
 }
 
 export function applyAutomaticPricing(settings: StudioSettings, commission: Commission): Commission {
   const pricing = calculateCommissionPricing(settings, commission);
-  return { ...commission, rushMultiplier: pricing.multiplier, basePriceMin: pricing.basePrice, basePriceMax: pricing.basePrice, basePriceText: String(pricing.basePrice), depositAmount: pricing.deposit, depositText: String(pricing.deposit), finalPrice: pricing.quote, finalPriceText: String(pricing.quote), balanceAmount: pricing.balance, additionalQuoteAmount: pricing.additionalQuote, totalAmount: pricing.total };
+  return { ...commission, rawBasePrice: pricing.rawBasePrice, rushMultiplier: pricing.multiplier, basePriceMin: pricing.basePrice, basePriceMax: pricing.basePrice, basePriceText: String(pricing.basePrice), depositAmount: pricing.deposit, depositText: String(pricing.deposit), finalPrice: pricing.quote, finalPriceText: String(pricing.quote), balanceAmount: pricing.balance, additionalQuoteAmount: pricing.additionalQuote, totalAmount: pricing.total };
 }
 
 export function getDeliveryTier(dueDate: number | null, now = Date.now()) {
@@ -316,9 +375,10 @@ export function isPrivacyReminderDue(commission: Pick<Commission, "privacyMode" 
 }
 
 export function prioritizeRecentCommissions(items: Commission[], now = Date.now()) {
-  const lastQueuedWeek = getLastQueuedWeek(items);
+  const activeItems = items.filter((item) => item.status !== "archived");
+  const lastQueuedWeek = getLastQueuedWeek(activeItems);
   const urgent = (commission: Commission) => commission.scheduleType !== "reservation" && (commission.isRush || Boolean(autoDetectRushLevel(commission.dueDate, lastQueuedWeek, now)));
-  return [...items].sort((a, b) => Number(urgent(b)) - Number(urgent(a)) || (a.dueDate ?? Number.MAX_SAFE_INTEGER) - (b.dueDate ?? Number.MAX_SAFE_INTEGER) || (getCommissionScheduleWeek(a) ?? Number.MAX_SAFE_INTEGER) - (getCommissionScheduleWeek(b) ?? Number.MAX_SAFE_INTEGER) || a.createdAt - b.createdAt);
+  return [...activeItems].sort((a, b) => Number(urgent(b)) - Number(urgent(a)) || (a.dueDate ?? Number.MAX_SAFE_INTEGER) - (b.dueDate ?? Number.MAX_SAFE_INTEGER) || (getCommissionScheduleWeek(a) ?? Number.MAX_SAFE_INTEGER) - (getCommissionScheduleWeek(b) ?? Number.MAX_SAFE_INTEGER) || a.createdAt - b.createdAt);
 }
 
 export function enableRushWithDefault(commission: Commission) {
@@ -328,4 +388,22 @@ export function enableRushWithDefault(commission: Commission) {
 export function getQueuePositionShifts(items: Commission[], month: string, position: number, excludedId?: string) { if (!month || position < 1) return []; return items.filter((item) => item.id !== excludedId && item.queueMonth === month && item.queuePosition >= position).sort((a, b) => b.queuePosition - a.queuePosition || b.createdAt - a.createdAt).map((item) => ({ id: item.id, queuePosition: item.queuePosition + 1 })); }
 export function displayPrice(commission: Commission) { return commission.depositText || commission.finalPriceText ? `${commission.depositText || formatCurrency(commission.depositAmount)}/${commission.finalPriceText || formatCurrency(commission.finalPrice)}` : commission.basePriceText || formatCurrency(commission.basePriceMin); }
 export function formatDateTime(value: number | null | undefined) { return !value ? "尚未記錄" : new Intl.DateTimeFormat("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(value); }
-export function withStatusTransition(commission: Commission, nextStatus: CommissionStatus, note?: string, at = Date.now()) { return { ...commission, status: nextStatus, statusHistory: [...(commission.statusHistory ?? []), { status: nextStatus, at, ...(note ? { note } : {}) }], completedAt: nextStatus === "completed" ? at : null, updatedAt: at }; }
+export function withStatusTransition(commission: Commission, nextStatus: CommissionStatus, note?: string, at = Date.now()) { return { ...commission, status: nextStatus, statusHistory: [...(commission.statusHistory ?? []), { status: nextStatus, at, ...(note ? { note } : {}) }], completedAt: nextStatus === "completed" ? at : nextStatus === "archived" ? commission.completedAt : null, archivedAt: nextStatus === "archived" ? at : null, archivedFromStatus: nextStatus === "archived" ? (commission.status === "archived" ? commission.archivedFromStatus : commission.status) : null, updatedAt: at }; }
+export function archiveCommission(commission: Commission, note = "委託人未回覆，暫時封存留存紀錄。", at = Date.now()) { return commission.status === "archived" ? commission : withStatusTransition(commission, "archived", note, at); }
+export function restoreArchivedCommission(commission: Commission, note = "重新啟用封存案件。", at = Date.now()) { if (commission.status !== "archived") return commission; return withStatusTransition({ ...commission, archivedAt: null, archivedFromStatus: null }, commission.archivedFromStatus ?? "inquiry", note, at); }
+export function filterArchivedCommissions(items: Commission[], query = "", stage: "all" | Exclude<CommissionStatus, "archived"> = "all") {
+  const keyword = query.trim().toLowerCase();
+  return items.filter((commission) => {
+    const matchesKeyword = !keyword || [commission.clientName, commission.orderCode, commission.contactHandle, commission.requirements].join(" ").toLowerCase().includes(keyword);
+    const matchesStage = stage === "all" || commission.archivedFromStatus === stage;
+    return commission.status === "archived" && matchesKeyword && matchesStage;
+  }).sort((a, b) => (b.archivedAt ?? b.updatedAt) - (a.archivedAt ?? a.updatedAt));
+}
+export function groupCommissionCollections(items: Commission[]) {
+  const active = items.filter((commission) => commission.status !== "archived");
+  return {
+    queued: active.filter((commission) => commission.status !== "completed" && commission.scheduleType !== "reservation"),
+    reservations: active.filter((commission) => commission.status !== "completed" && commission.scheduleType === "reservation"),
+    completed: active.filter((commission) => commission.status === "completed"),
+  };
+}
