@@ -78,15 +78,15 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "d306eb6e9f576076c4a6d0126116088e"
+    "revision": "8124e8f8f4427ff7dbded3ab3dd087e2"
   }, {
     "url": "hui-yue-title.svg",
     "revision": "08f4d00d1325ea519dd08ed1d5646d82"
   }, {
-    "url": "assets/index-BhKBHAsc.css",
+    "url": "assets/index-DcGlcmd4.css",
     "revision": null
   }, {
-    "url": "assets/index-BaVSGvvD.js",
+    "url": "assets/index-B-jAuiRc.js",
     "revision": null
   }, {
     "url": "__manus__/debug-collector.js",
