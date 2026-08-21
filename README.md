@@ -28,4 +28,6 @@ pnpm build
 
 推送至 `main` 分支後，工作流程會執行型別檢查、單元測試、PWA 建置並發布到 GitHub Pages。Firebase 規則與部署細節請參閱 [`docs/Firebase與GitHub部署手冊.md`](docs/Firebase與GitHub部署手冊.md)。
 
+委託人公開填單與個人案件進度入口的 Firebase 啟用步驟，請參閱 [`docs/委託人入口啟用指南.md`](docs/委託人入口啟用指南.md)。
+
 > 請勿提交 `.env`、`.project-config.json`、`dist/`、`node_modules/` 或任何 Firebase 私密設定檔。

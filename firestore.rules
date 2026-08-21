@@ -2,16 +2,43 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isArtist() {
+      return request.auth != null && request.auth.uid == 'a9dFKJad7HUkHnZaNmF1cUTfZ583';
+    }
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     match /artists/{artistId}/commissions/{commissionId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == artistId
-        && request.auth.uid == 'a9dFKJad7HUkHnZaNmF1cUTfZ583';
+      allow read, write: if isArtist() && request.auth.uid == artistId;
     }
 
     match /artists/{artistId}/settings/{settingId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == artistId
-        && request.auth.uid == 'a9dFKJad7HUkHnZaNmF1cUTfZ583';
+      allow read, write: if isArtist() && request.auth.uid == artistId;
+    }
+
+    match /clientProfiles/{userId} {
+      allow create, update: if isOwner(userId);
+      allow read: if isOwner(userId) || isArtist();
+      allow delete: if isArtist();
+    }
+
+    match /clientSubmissions/{submissionId} {
+      allow create: if request.auth != null
+        && request.resource.data.clientUid == request.auth.uid
+        && request.resource.data.ownerUid == 'a9dFKJad7HUkHnZaNmF1cUTfZ583'
+        && request.resource.data.state == 'submitted';
+      allow read: if isArtist() || (request.auth != null && resource.data.clientUid == request.auth.uid);
+      allow update, delete: if isArtist();
+    }
+
+    match /clientProgress/{progressId} {
+      allow get: if isArtist()
+        || (request.auth != null && resource.data.clientUid == request.auth.uid)
+        || (resource.data.accessMode == 'code' && resource.data.accessCode == progressId && resource.data.revokedAt == null);
+      allow list: if isArtist() || (request.auth != null && resource.data.clientUid == request.auth.uid);
+      allow create, update, delete: if isArtist();
     }
   }
 }
