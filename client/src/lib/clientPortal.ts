@@ -104,6 +104,11 @@ export function hydrateClientSubmission(documentId: string, data: ClientSubmissi
   return { ...data, id: documentId };
 }
 
+/** 僅顯示仍待繪師決定的公開送件；已取消或已受理的函件不應留在待閱清單。 */
+export function getPendingClientSubmissions(items: ClientSubmission[]) {
+  return items.filter((item) => item.state === "submitted");
+}
+
 export function getClientProgressPath(code: string) {
   return `/#/client/progress/${encodeURIComponent(code.trim().toUpperCase())}`;
 }

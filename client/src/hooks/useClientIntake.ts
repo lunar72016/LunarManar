@@ -53,6 +53,14 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     return progress;
   }, [user?.uid]);
 
+  const discardSubmission = useCallback(async (submissionId: string) => {
+    const db = firestoreDb;
+    if (!db || !user) throw new Error("目前無法連接資料庫");
+    if (!submissionId) throw new Error("委託函缺少文件識別碼，請重新整理後再刪除。");
+    setSubmissions((current) => current.filter((item) => item.id !== submissionId));
+    await deleteDoc(doc(db, "clientSubmissions", submissionId));
+  }, [user?.uid]);
+
   const revokeProgress = useCallback(async (progress: ClientProgress) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
@@ -106,5 +114,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, revokeProgress, publishExistingProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [error, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [discardSubmission, error, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }

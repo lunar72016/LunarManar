@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, createPortalAccessCode, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -30,5 +30,14 @@ describe("委託人入口資料工具", () => {
   it("keeps the accepted commission relationship for later portal cleanup", () => {
     const submission = hydrateClientSubmission("submission-document-id", { id: "", clientName: "月見", commissionId: "commission-1" } as ClientSubmission);
     expect(submission.commissionId).toBe("commission-1");
+  });
+
+  it("only exposes unreviewed submissions in the intake queue", () => {
+    const pending = getPendingClientSubmissions([
+      { id: "submitted", state: "submitted" },
+      { id: "accepted", state: "accepted" },
+      { id: "declined", state: "declined" },
+    ] as ClientSubmission[]);
+    expect(pending.map((item) => item.id)).toEqual(["submitted"]);
   });
 });
