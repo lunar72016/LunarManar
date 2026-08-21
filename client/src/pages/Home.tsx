@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { useCommissions } from "@/hooks/useCommissions";
 import { useStudioSettings } from "@/hooks/useStudioSettings";
-import { Commission, CommissionStatus, applyAutomaticPricing, filterArchivedCommissions, formatCurrency, getDefaultScheduleWeekStart, getLastQueuedWeek, groupQueuedCommissionsByMonth, monthLabel, prioritizeRecentCommissions, sortCommissionsForSchedule, statusMeta } from "@/lib/commission";
+import { Commission, CommissionStatus, PendingPaymentCommission, applyAutomaticPricing, filterArchivedCommissions, formatCurrency, getDefaultScheduleWeekStart, getLastQueuedWeek, getPendingPaymentCommissions, groupQueuedCommissionsByMonth, monthLabel, prioritizeRecentCommissions, sortCommissionsForSchedule, statusMeta } from "@/lib/commission";
 import StudioSettingsPage from "@/pages/StudioSettingsPage";
 import { ArchiveRestore, BadgePlus, CalendarClock, CircleDollarSign, CloudOff, FolderKanban, LockKeyhole, Search, Sparkles, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -64,10 +64,12 @@ function CommissionWorkspace() {
     const currentCommissions = activeCommissions.filter((item) => item.status !== "completed");
     const paidDeposit = currentCommissions.filter((item) => item.depositState === "paid").reduce((total, item) => total + (item.depositAmount ?? 0), 0);
     const paidBalance = currentCommissions.filter((item) => item.balanceState === "paid").reduce((total, item) => total + (item.balanceAmount ?? 0), 0);
+    const pendingPayments = getPendingPaymentCommissions(activeCommissions);
     const queuedCount = currentCommissions.filter((item) => item.scheduleType !== "reservation").length;
     const reservationCount = currentCommissions.length - queuedCount;
-    return { total: queuedCount, reservations: reservationCount, sketching: currentCommissions.filter((item) => item.status === "sketching" && item.scheduleType !== "reservation").length, finalizing: currentCommissions.filter((item) => item.status === "finalizing" && item.scheduleType !== "reservation").length, awaiting: currentCommissions.filter((item) => ["awaiting_deposit", "awaiting_balance"].includes(item.status)).length, income: paidDeposit + paidBalance };
+    return { total: queuedCount, reservations: reservationCount, sketching: currentCommissions.filter((item) => item.status === "sketching" && item.scheduleType !== "reservation").length, finalizing: currentCommissions.filter((item) => item.status === "finalizing" && item.scheduleType !== "reservation").length, awaiting: pendingPayments.length, awaitingAmount: pendingPayments.reduce((total, item) => total + item.totalAmount, 0), income: paidDeposit + paidBalance };
   }, [activeCommissions]);
+  const pendingPayments = useMemo(() => getPendingPaymentCommissions(filtered), [filtered]);
 
   const openNew = () => { setSelected(null); setViewOpen(false); setDialogOpen(true); };
   const openEdit = (commission: Commission) => { setSelected(commission); setViewOpen(false); setDialogOpen(true); };
@@ -128,7 +130,7 @@ function CommissionWorkspace() {
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#283b31]">{heading}</p><p className="mt-2 text-sm text-[#456153]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>
         <div className="flex flex-wrap gap-2"><div className="relative min-w-[220px] flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#456153]" /><Input value={activeView === "archive" ? archiveSearch : search} onChange={(event) => { if (activeView === "archive") { setArchiveSearch(event.target.value); setArchiveLimit(12); } else setSearch(event.target.value); }} className="border-[#cfd9cf] bg-[#fffdfa] pl-9" placeholder={activeView === "archive" ? "搜尋入卷案件、單號或需求" : "搜尋委託人、範圍或精緻度"} /></div></div>
       </div>
-      {commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered.filter((commission) => commission.status !== "archived")} onView={openView} onAdvance={advance} /> : activeView === "archive" ? <ArchivedView commissions={archivedMatches.slice(0, archiveLimit)} total={archivedMatches.length} stage={archiveStage} pageSize={archiveLimit} hasMore={archivedMatches.length > archiveLimit} onStageChange={(value) => { setArchiveStage(value); setArchiveLimit(12); }} onPageSizeChange={(value) => setArchiveLimit(value)} onLoadMore={() => setArchiveLimit((current) => current + 12)} onView={openView} /> : <BoardView months={boardGroups.months} rush={boardGroups.rush} reservations={boardGroups.reservations} completed={boardGroups.completed} onView={openView} />}
+      {commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered.filter((commission) => commission.status !== "archived")} pendingPayments={pendingPayments} onView={openView} onAdvance={advance} /> : activeView === "archive" ? <ArchivedView commissions={archivedMatches.slice(0, archiveLimit)} total={archivedMatches.length} stage={archiveStage} pageSize={archiveLimit} hasMore={archivedMatches.length > archiveLimit} onStageChange={(value) => { setArchiveStage(value); setArchiveLimit(12); }} onPageSizeChange={(value) => setArchiveLimit(value)} onLoadMore={() => setArchiveLimit((current) => current + 12)} onView={openView} /> : <BoardView months={boardGroups.months} rush={boardGroups.rush} reservations={boardGroups.reservations} completed={boardGroups.completed} onView={openView} />}
     </main>}
     {activeView !== "settings" && <Button className="fixed bottom-6 right-5 z-30 rounded-full bg-[#355b48] px-5 text-[#fffdfa] shadow-[0_12px_28px_rgba(40,59,49,.28)] hover:bg-[#294a3a] sm:bottom-8 sm:right-8" onClick={openNew}><BadgePlus className="mr-1.5 h-4 w-4" />寫畫起約</Button>}
     <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} onDelete={removeCommission} settings={studio.settings} defaultScheduleWeekStart={defaultScheduleWeekStart} lastQueuedWeek={lastQueuedWeek} />
@@ -136,19 +138,28 @@ function CommissionWorkspace() {
   </DashboardLayout></TooltipProvider>;
 }
 
-function DashboardView({ summary, commissions, onView, onAdvance }: { summary: { total: number; reservations: number; sketching: number; finalizing: number; awaiting: number; income: number }; commissions: Commission[]; onView: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {
+function DashboardView({ summary, commissions, pendingPayments, onView, onAdvance }: { summary: { total: number; reservations: number; sketching: number; finalizing: number; awaiting: number; awaitingAmount: number; income: number }; commissions: Commission[]; pendingPayments: PendingPaymentCommission[]; onView: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {
   const priority = prioritizeRecentCommissions(commissions.filter((commission) => commission.status !== "completed")).slice(0, 4);
   return <div className="space-y-6">
     <section className="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)]">
       <SummaryGroup title="筆墨進程" detail={summary.reservations ? `候筆繪列另有 ${summary.reservations} 張預約` : "候筆繪列的目前節奏"} icon={<FolderKanban className="h-4 w-4" />}>
         <div className="grid grid-cols-3 gap-2.5"><CompactSummary label="一般排單" value={String(summary.total)} tone="sage" /><CompactSummary label="草稿製作中" value={String(summary.sketching)} tone="sand" /><CompactSummary label="完稿製作中" value={String(summary.finalizing)} tone="sage" /></div>
       </SummaryGroup>
-      <SummaryGroup title="潤筆入匣" detail="已依收款狀態彙整" icon={<WalletCards className="h-4 w-4" />}>
-        <div className="grid grid-cols-2 gap-2.5"><CompactSummary label="待收款" value={String(summary.awaiting)} tone="rose" /><CompactSummary label="已入帳" value={`NT$ ${formatCurrency(summary.income)}`} tone="ink" /></div>
+      <SummaryGroup title="潤筆入匣" detail={summary.awaiting ? `待收 NT$ ${formatCurrency(summary.awaitingAmount)}` : "款項已收錄完畢"} icon={<WalletCards className="h-4 w-4" />}>
+        <div className="grid grid-cols-2 gap-2.5"><CompactSummary label="待潤筆" value={`${summary.awaiting} 筆`} tone="rose" /><CompactSummary label="已入帳" value={`NT$ ${formatCurrency(summary.income)}`} tone="ink" /></div>
       </SummaryGroup>
     </section>
+    {pendingPayments.length > 0 && <PendingPaymentShelf payments={pendingPayments} onView={onView} />}
     <section className="rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.07)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">近案墨痕</h2><p className="mt-1 text-sm text-[#456153]">加急或期限在前的畫約會優先置頂並以暖色標記；預約單不列入此處。</p></div><Sparkles className="h-5 w-5 text-[#6c9575]" /></div>{priority.length ? <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onView={onView} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section>
   </div>;
+}
+
+function PendingPaymentShelf({ payments, onView }: { payments: PendingPaymentCommission[]; onView: (commission: Commission) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? payments : payments.slice(0, 3);
+  const pendingTotal = payments.reduce((total, item) => total + item.totalAmount, 0);
+  const label = (kind: PendingPaymentCommission["entries"][number]["kind"]) => kind === "deposit" ? "待收訂金" : "待收尾款";
+  return <section className="rounded-2xl border border-[#e4c7b1] bg-[#fffaf6] p-4 shadow-[0_6px_22px_rgba(169,87,60,.06)] sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-display text-xl font-semibold text-[#7d4631]">待潤筆畫約</h2><p className="mt-0.5 text-xs text-[#8b614f]">尚有 {payments.length} 筆待收，合計 NT$ {formatCurrency(pendingTotal)}</p></div><span className="rounded-full border border-[#ecd2c2] bg-[#fff6f0] px-2.5 py-1 text-xs font-medium text-[#a9573c]">待收款</span></div><div className="mt-3 divide-y divide-[#efdcd0] border-y border-[#efdcd0]">{visible.map(({ commission, entries, totalAmount }) => <button type="button" key={commission.id} onClick={() => onView(commission)} className="flex w-full items-center justify-between gap-3 py-3 text-left transition-colors hover:bg-[#fff5ee]"><div className="min-w-0"><p className="truncate font-medium text-[#283b31]">{commission.clientName}</p><div className="mt-1 flex flex-wrap gap-1.5">{entries.map((entry) => <span key={entry.kind} className="rounded-full bg-[#fff0e9] px-2 py-0.5 text-[11px] font-medium text-[#a9573c]">{label(entry.kind)}</span>)}<span className="rounded-full bg-[#f2eee8] px-2 py-0.5 text-[11px] text-[#6c6259]">{statusMeta[commission.status].label}</span></div></div><div className="shrink-0 text-right"><p className="text-sm font-semibold text-[#7d4631]">NT$ {formatCurrency(totalAmount)}</p><p className="mt-0.5 text-xs text-[#8b614f]">查看畫約 →</p></div></button>)}</div>{payments.length > 3 && <div className="mt-3 text-center"><Button type="button" variant="outline" size="sm" className="border-[#d7b8a7] bg-[#fffdfa] text-[#8e4932] hover:bg-[#fff0e9]" onClick={() => setExpanded((value) => !value)}>{expanded ? "收起待潤筆" : `查看全部待收款（${payments.length}）`}</Button></div>}</section>;
 }
 
 function SummaryGroup({ title, detail, icon, children }: { title: string; detail: string; icon: React.ReactNode; children: React.ReactNode }) { return <section className="rounded-2xl border border-[#cfd9cf] bg-[#fffdfa] p-4 shadow-[0_6px_22px_rgba(40,59,49,.05)]"><div className="mb-3 flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#dce9dc] text-[#355b48]">{icon}</span><div><h2 className="font-display text-lg font-semibold text-[#283b31]">{title}</h2><p className="text-[11px] text-[#6c7e70]">{detail}</p></div></div>{children}</section>; }

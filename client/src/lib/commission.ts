@@ -304,6 +304,19 @@ export const initialCommissions: Commission[] = [
 
 export function monthLabel(month: string) { const [year, rawMonth] = month.split("-"); return year ? `${year} 年 ${Number(rawMonth)} 月` : "未排定月份"; }
 export function formatCurrency(value: number | null | undefined) { return value === null || value === undefined || Number.isNaN(value) ? "—" : new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 }).format(value); }
+export type PendingPaymentKind = "deposit" | "balance";
+export type PendingPaymentEntry = { kind: PendingPaymentKind; amount: number };
+export type PendingPaymentCommission = { commission: Commission; entries: PendingPaymentEntry[]; totalAmount: number };
+
+/** 僅彙整等待訂金與等待尾款階段的未收款項；封存案件不列入，急件與交稿日在前者優先。 */
+export function getPendingPaymentCommissions(items: Commission[]) {
+  return items.filter((commission) => ["awaiting_deposit", "awaiting_balance"].includes(commission.status)).map<PendingPaymentCommission | null>((commission) => {
+    const entries: PendingPaymentEntry[] = [];
+    if (commission.status === "awaiting_deposit" && commission.depositState !== "paid" && (commission.depositAmount ?? 0) > 0) entries.push({ kind: "deposit", amount: commission.depositAmount ?? 0 });
+    if (commission.status === "awaiting_balance" && commission.balanceState !== "paid" && (commission.balanceAmount ?? 0) > 0) entries.push({ kind: "balance", amount: commission.balanceAmount ?? 0 });
+    return entries.length ? { commission, entries, totalAmount: entries.reduce((total, entry) => total + entry.amount, 0) } : null;
+  }).filter((item): item is PendingPaymentCommission => item !== null).sort((a, b) => Number(b.commission.isRush) - Number(a.commission.isRush) || (a.commission.dueDate ?? Number.MAX_SAFE_INTEGER) - (b.commission.dueDate ?? Number.MAX_SAFE_INTEGER) || a.commission.createdAt - b.commission.createdAt);
+}
 const roundCurrency = (value: number) => Math.round(value);
 
 export function getArtworkItems(commission: Commission): ArtworkItem[] {

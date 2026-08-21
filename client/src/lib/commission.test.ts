@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addWeeks, applyAutomaticPricing, applyRushDecision, archiveCommission, autoDetectRushLevel, countWorkdays, createArtworkItem, createBlankCommission, displayPrice, enableRushWithDefault, filterArchivedCommissions, formatDateInput, formatDisplayDate, getAvailableFinishes, getAvailableQSizes, getAvailableScopes, getCommissionScheduleMonth, getDefaultScheduleWeekStart, getDeliveryTier, getLastQueuedWeek, getQueuePositionShifts, groupCommissionCollections, groupQueuedCommissionsByMonth, initialCommissions, isDateAfter, isPrivacyReminderDue, parseGregorianDate, prioritizeRecentCommissions, restoreArchivedCommission, rushLevelOptions, shouldConvertReservation, sortCommissionsForSchedule, startOfWeek, statusMeta, weekLabel, withStatusTransition } from "./commission";
+import { addWeeks, applyAutomaticPricing, applyRushDecision, archiveCommission, autoDetectRushLevel, countWorkdays, createArtworkItem, createBlankCommission, displayPrice, enableRushWithDefault, filterArchivedCommissions, formatDateInput, formatDisplayDate, getAvailableFinishes, getAvailableQSizes, getAvailableScopes, getCommissionScheduleMonth, getDefaultScheduleWeekStart, getDeliveryTier, getLastQueuedWeek, getPendingPaymentCommissions, getQueuePositionShifts, groupCommissionCollections, groupQueuedCommissionsByMonth, initialCommissions, isDateAfter, isPrivacyReminderDue, parseGregorianDate, prioritizeRecentCommissions, restoreArchivedCommission, rushLevelOptions, shouldConvertReservation, sortCommissionsForSchedule, startOfWeek, statusMeta, weekLabel, withStatusTransition } from "./commission";
 import { defaultStudioSettings } from "./studioSettings";
 
 describe("commission domain model", () => {
@@ -22,12 +22,24 @@ describe("commission domain model", () => {
 	    expect(isDateAfter(augustFifth, new Date(2026, 7, 5, 23, 59).getTime())).toBe(false);
 	  });
 
-	  it("preserves special price notation while retaining calculable payment values", () => {
+  it("preserves special price notation while retaining calculable payment values", () => {
     const item = initialCommissions.find((commission) => commission.clientName === "99oo");
     expect(item?.depositAmount).toBe(400);
     expect(item?.finalPrice).toBe(1500);
     expect(item?.balanceAmount).toBe(1100);
     expect(item && displayPrice(item)).toBe("400/1500↓");
+  });
+
+  it("only collects waiting-deposit and waiting-balance entries, prioritizing rush work", () => {
+    const ordinary = { ...createBlankCommission(), id: "ordinary", clientName: "一般案件", status: "awaiting_balance" as const, depositAmount: 1000, balanceAmount: 2000, depositState: "paid" as const, balanceState: "unpaid" as const, createdAt: 1 };
+    const rushed = { ...createBlankCommission(), id: "rush", clientName: "急件", status: "awaiting_deposit" as const, depositAmount: 800, balanceAmount: 1200, depositState: "unpaid" as const, balanceState: "unpaid" as const, isRush: true, createdAt: 3 };
+    const otherStage = { ...createBlankCommission(), id: "other-stage", status: "queued" as const, depositAmount: 500, depositState: "unpaid" as const, createdAt: 2 };
+
+    const pending = getPendingPaymentCommissions([ordinary, otherStage, rushed]);
+
+    expect(pending.map((item) => item.commission.id)).toEqual(["rush", "ordinary"]);
+    expect(pending[0]).toMatchObject({ totalAmount: 800, entries: [{ kind: "deposit", amount: 800 }] });
+    expect(pending[1]).toMatchObject({ totalAmount: 2000, entries: [{ kind: "balance", amount: 2000 }] });
   });
 
   it("starts a new commission at the inquiry stage with a timestamped history entry", () => {
