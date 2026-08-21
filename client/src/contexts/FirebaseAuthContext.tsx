@@ -1,8 +1,11 @@
 import { firebaseAuth, firebaseConfigured, isAllowedArtist } from "@/lib/firebase";
 import {
+  GoogleAuthProvider,
   User,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
@@ -13,6 +16,8 @@ type FirebaseAuthContextValue = {
   configured: boolean;
   isAllowed: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithAnonymousAccount: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -42,6 +47,16 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
       signIn: async (email, password) => {
         if (!firebaseAuth) throw new Error("Firebase 尚未設定完成");
         await signInWithEmailAndPassword(firebaseAuth, email, password);
+      },
+      signInWithGoogle: async () => {
+        if (!firebaseAuth) throw new Error("Firebase 尚未設定完成");
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        await signInWithPopup(firebaseAuth, provider);
+      },
+      signInWithAnonymousAccount: async () => {
+        if (!firebaseAuth) throw new Error("Firebase 尚未設定完成");
+        if (!firebaseAuth.currentUser) await signInAnonymously(firebaseAuth);
       },
       signOut: async () => {
         if (firebaseAuth) await firebaseSignOut(firebaseAuth);
