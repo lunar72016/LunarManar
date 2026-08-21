@@ -2,13 +2,14 @@ import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Cloud, CloudOff, LayoutDashboard, ListTree, LogOut, PanelLeft, RefreshCw, Settings2 } from "lucide-react";
+import { Archive, Cloud, CloudOff, Inbox, LayoutDashboard, ListTree, LogOut, PanelLeft, RefreshCw, Settings2 } from "lucide-react";
 
-export type WorkspaceView = "dashboard" | "board" | "archive" | "settings";
+export type WorkspaceView = "dashboard" | "board" | "archive" | "intake" | "settings";
 const menuItems: { id: WorkspaceView; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "千繪總覽", icon: LayoutDashboard },
   { id: "board", label: "排畫連雲", icon: ListTree },
   { id: "archive", label: "封畫入卷", icon: Archive },
+  { id: "intake", label: "委託函", icon: Inbox },
   { id: "settings", label: "丹青設案", icon: Settings2 },
 ];
 const titleIconSrc = `${import.meta.env.BASE_URL}hui-yue-title.svg`;
