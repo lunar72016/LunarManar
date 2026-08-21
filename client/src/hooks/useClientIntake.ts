@@ -1,4 +1,4 @@
-import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode } from "@/lib/clientPortal";
+import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, hydrateClientSubmission } from "@/lib/clientPortal";
 import { Commission, createBlankCommission } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
@@ -32,7 +32,7 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     setLoading(true);
     const source = query(collection(db, "clientSubmissions"), where("ownerUid", "==", user.uid));
     return onSnapshot(source, (snapshot) => {
-      setSubmissions(snapshot.docs.map((item) => item.data() as ClientSubmission).sort((a, b) => b.createdAt - a.createdAt));
+      setSubmissions(snapshot.docs.map((item) => hydrateClientSubmission(item.id, item.data() as ClientSubmission)).sort((a, b) => b.createdAt - a.createdAt));
       setLoading(false);
     }, (nextError) => {
       setError(nextError.message.includes("permission-denied") ? "尚未發布委託人入口的 Firestore 規則。" : nextError.message);
@@ -48,6 +48,7 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
       : { id: commission.id, accessMode: "google" as const, clientUid: submission.clientUid, accessCode: null, ownerUid: user.uid };
     const progress = buildClientProgress(commission, access);
     await setDoc(doc(db, "clientProgress", progress.id), progress);
+    if (!submission.id) throw new Error("委託函缺少文件識別碼，請重新整理後再受理。");
     await updateDoc(doc(db, "clientSubmissions", submission.id), { state: "accepted", updatedAt: Date.now(), commissionId: commission.id });
     return progress;
   }, [user?.uid]);

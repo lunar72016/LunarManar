@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
-import { ClientProgress, ClientSubmission, createPortalAccessCode, getClientProgressPath, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
+import { ClientProgress, ClientSubmission, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
 import { describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
 import { CheckCircle2, ClipboardList, KeyRound, LoaderCircle, LogIn, MoonStar, ShieldCheck, Sparkles } from "lucide-react";
 import { addDoc, collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
@@ -57,7 +57,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     const progressQuery = query(collection(firestoreDb, "clientProgress"), where("clientUid", "==", user.uid), where("revokedAt", "==", null));
     const submissionQuery = query(collection(firestoreDb, "clientSubmissions"), where("clientUid", "==", user.uid));
     const unsubscribeProgress = onSnapshot(progressQuery, (snapshot) => setMyProgress(snapshot.docs.map((item) => item.data() as ClientProgress)), () => setMyProgress([]));
-    const unsubscribeSubmissions = onSnapshot(submissionQuery, (snapshot) => setMySubmissions(snapshot.docs.map((item) => item.data() as ClientSubmission).sort((a, b) => b.createdAt - a.createdAt)), () => setMySubmissions([]));
+    const unsubscribeSubmissions = onSnapshot(submissionQuery, (snapshot) => setMySubmissions(snapshot.docs.map((item) => hydrateClientSubmission(item.id, item.data() as ClientSubmission)).sort((a, b) => b.createdAt - a.createdAt)), () => setMySubmissions([]));
     return () => { unsubscribeProgress(); unsubscribeSubmissions(); };
   }, [user?.uid]);
 

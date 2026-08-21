@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, createPortalAccessCode, getClientProgressPath, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -20,5 +20,10 @@ describe("委託人入口資料工具", () => {
     expect(progress).toMatchObject({ commissionId: "commission-1", statusLabel: "草稿製作", scheduleWeekLabel: "8月第一週" });
     expect(progress).not.toHaveProperty("depositAmount");
     expect(getClientProgressPath(progress.accessCode!)).toContain("/#/client/progress/HY-");
+  });
+
+  it("uses the Firestore document ID when stored submission data has a blank id", () => {
+    const submission = hydrateClientSubmission("submission-document-id", { id: "", clientName: "月見" } as ClientSubmission);
+    expect(submission.id).toBe("submission-document-id");
   });
 });

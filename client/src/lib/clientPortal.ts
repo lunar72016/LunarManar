@@ -98,6 +98,11 @@ export function normalizeReferenceUrls(value: string) {
   return Array.from(new Set(value.split(/[\n,\s]+/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item))));
 }
 
+/** Firestore 的文件 ID 為唯一可信識別，避免舊資料中的空白 id 導致文件路徑缺少最後一段。 */
+export function hydrateClientSubmission(documentId: string, data: ClientSubmission): ClientSubmission {
+  return { ...data, id: documentId };
+}
+
 export function getClientProgressPath(code: string) {
   return `/#/client/progress/${encodeURIComponent(code.trim().toUpperCase())}`;
 }
