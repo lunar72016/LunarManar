@@ -2,7 +2,7 @@ import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress
 import { Commission, createBlankCommission } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
-import { collection, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function commissionFromClientSubmission(submission: ClientSubmission): Commission {
@@ -86,6 +86,16 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     await Promise.all(matches.docs.map((item) => updateDoc(item.ref, { revokedAt: Date.now(), updatedAt: Date.now() })));
   }, [user?.uid]);
 
+  const removeCommissionPortalRecords = useCallback(async (commissionId: string) => {
+    const db = firestoreDb;
+    if (!db || !user || !commissionId) return;
+    const [submissionMatches, progressMatches] = await Promise.all([
+      getDocs(query(collection(db, "clientSubmissions"), where("commissionId", "==", commissionId))),
+      getDocs(query(collection(db, "clientProgress"), where("commissionId", "==", commissionId))),
+    ]);
+    await Promise.all([...submissionMatches.docs, ...progressMatches.docs].map((item) => deleteDoc(item.ref)));
+  }, [user?.uid]);
+
   const syncProgress = useCallback(async (commission: Commission) => {
     const db = firestoreDb;
     if (!db || !user) return;
@@ -96,5 +106,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, revokeProgress, publishExistingProgress, revokeCommissionProgress, syncProgress }), [error, loading, publishExistingProgress, publishProgress, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, revokeProgress, publishExistingProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [error, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }

@@ -12,6 +12,7 @@ export type ClientProfile = {
 
 export type ClientSubmission = {
   id: string;
+  commissionId?: string;
   accessMode: ClientAccessMode;
   clientUid: string | null;
   accessCode: string | null;

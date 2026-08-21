@@ -99,6 +99,7 @@ function CommissionWorkspace() {
   };
   const removeCommission = async (commission: Commission) => {
     try {
+      await intake.removeCommissionPortalRecords(commission.id);
       await deleteCommission(commission.id);
       toast.success(`已刪除「${commission.clientName}」的排單`, { description: "已從本機移除，系統會在背景同步刪除。" });
     } catch (deleteError) {

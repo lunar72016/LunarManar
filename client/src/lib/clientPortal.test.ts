@@ -26,4 +26,9 @@ describe("委託人入口資料工具", () => {
     const submission = hydrateClientSubmission("submission-document-id", { id: "", clientName: "月見" } as ClientSubmission);
     expect(submission.id).toBe("submission-document-id");
   });
+
+  it("keeps the accepted commission relationship for later portal cleanup", () => {
+    const submission = hydrateClientSubmission("submission-document-id", { id: "", clientName: "月見", commissionId: "commission-1" } as ClientSubmission);
+    expect(submission.commissionId).toBe("commission-1");
+  });
 });
