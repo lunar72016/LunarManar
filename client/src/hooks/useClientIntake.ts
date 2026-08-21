@@ -2,7 +2,7 @@ import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress
 import { Commission, createBlankCommission } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
-import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function commissionFromClientSubmission(submission: ClientSubmission): Commission {
@@ -57,9 +57,21 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
     if (!submissionId) throw new Error("委託函缺少文件識別碼，請重新整理後再刪除。");
+    const removed = submissions.find((item) => item.id === submissionId);
     setSubmissions((current) => current.filter((item) => item.id !== submissionId));
-    await deleteDoc(doc(db, "clientSubmissions", submissionId));
-  }, [user?.uid]);
+    try {
+      await deleteDoc(doc(db, "clientSubmissions", submissionId));
+      return await Promise.race([
+        waitForPendingWrites(db).then(() => "confirmed" as const),
+        new Promise<"offline">((resolve) => window.setTimeout(() => resolve("offline"), 3500)),
+      ]);
+    } catch (error) {
+      if (removed) setSubmissions((current) => current.some((item) => item.id === removed.id) ? current : [...current, removed].sort((a, b) => b.createdAt - a.createdAt));
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("permission-denied") || message.includes("insufficient permissions")) throw new Error("Firebase 未允許繪師刪除委託函。請在 Firebase Console 發布最新版 firestore.rules 後再試。");
+      throw error;
+    }
+  }, [submissions, user?.uid]);
 
   const revokeProgress = useCallback(async (progress: ClientProgress) => {
     const db = firestoreDb;

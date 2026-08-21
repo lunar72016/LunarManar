@@ -38,7 +38,22 @@ service cloud.firestore {
         || (request.auth != null && resource.data.clientUid == request.auth.uid)
         || (resource.data.accessMode == 'code' && resource.data.accessCode == progressId && resource.data.revokedAt == null);
       allow list: if isArtist() || (request.auth != null && resource.data.clientUid == request.auth.uid);
-      allow create, update, delete: if isArtist();
+      allow create: if isArtist() || (
+        request.auth != null
+        && request.resource.data.id == progressId
+        && request.resource.data.accessMode == 'code'
+        && request.resource.data.accessCode == progressId
+        && request.resource.data.clientUid == request.auth.uid
+        && request.resource.data.ownerUid == 'a9dFKJad7HUkHnZaNmF1cUTfZ583'
+        && request.resource.data.commissionId == ''
+        && request.resource.data.status == 'inquiry'
+        && request.resource.data.statusLabel == '等待繪師確認'
+        && request.resource.data.scheduleWeekLabel == '繪師確認後提供'
+        && request.resource.data.dueDateLabel == null
+        && request.resource.data.nextStep == '繪師正在閱讀委託內容，稍後會與您確認細節。'
+        && request.resource.data.revokedAt == null
+      );
+      allow update, delete: if isArtist();
     }
   }
 }

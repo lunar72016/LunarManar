@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, createPortalAccessCode, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -20,6 +20,14 @@ describe("委託人入口資料工具", () => {
     expect(progress).toMatchObject({ commissionId: "commission-1", statusLabel: "草稿製作", scheduleWeekLabel: "8月第一週" });
     expect(progress).not.toHaveProperty("depositAmount");
     expect(getClientProgressPath(progress.accessCode!)).toContain("/#/client/progress/HY-");
+  });
+
+  it("creates a safe code-only pending snapshot as soon as a public form is sent", () => {
+    const code = "HY-0000000000000000-0000000000000000-0000000000000000";
+    const progress = buildPendingClientProgress({ id: code, accessMode: "code", clientUid: "anonymous-user", accessCode: code, ownerUid: "artist" }, "月見");
+
+    expect(progress).toMatchObject({ id: code, commissionId: "", status: "inquiry", statusLabel: "等待繪師確認", scheduleWeekLabel: "繪師確認後提供" });
+    expect(progress).not.toHaveProperty("requirements");
   });
 
   it("uses the Firestore document ID when stored submission data has a blank id", () => {

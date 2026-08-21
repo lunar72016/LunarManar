@@ -4,9 +4,22 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import ClientPortalPage from "./pages/ClientPortalPage";
 import ProgressPlaceholder from "./pages/ProgressPlaceholder";
+import { useEffect, useState } from "react";
+
+function useHashRoute() {
+  const [hashRoute, setHashRoute] = useState(() => window.location.hash.replace(/^#/, ""));
+
+  useEffect(() => {
+    const refreshRoute = () => setHashRoute(window.location.hash.replace(/^#/, ""));
+    window.addEventListener("hashchange", refreshRoute);
+    return () => window.removeEventListener("hashchange", refreshRoute);
+  }, []);
+
+  return hashRoute;
+}
 
 function App() {
-  const hashRoute = window.location.hash.replace(/^#/, "");
+  const hashRoute = useHashRoute();
   const isClientRoute = hashRoute.startsWith("/client") || window.location.pathname.startsWith("/client");
   const isShareRoute = window.location.pathname.startsWith("/progress/");
   return (

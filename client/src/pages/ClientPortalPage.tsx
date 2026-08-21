@@ -3,10 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
-import { ClientProgress, ClientSubmission, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
+import { ClientProgress, ClientSubmission, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
 import { describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
 import { CheckCircle2, ClipboardList, KeyRound, LoaderCircle, LogIn, MoonStar, ShieldCheck, Sparkles } from "lucide-react";
-import { addDoc, collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, query, setDoc, where, writeBatch } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 
 type PortalTab = "submit" | "progress";
@@ -19,7 +19,7 @@ function readableFirebaseError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes("auth/")) return describeFirebaseAuthError(error);
   if (message.includes("auth/operation-not-allowed")) return "此登入方式尚未啟用。請通知繪師於 Firebase Authentication 開啟 Google 或 Anonymous Provider。";
-  if (message.includes("permission-denied")) return "資料庫尚未套用委託人入口規則，請通知繪師發布最新版 firestore.rules。";
+  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "資料庫尚未套用委託人入口規則，請通知繪師在 Firebase Console 發布最新版 firestore.rules 後再試。";
   return "目前無法完成操作，請確認網路後再試。";
 }
 
@@ -81,19 +81,29 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
       if (!currentUser) throw new Error("auth/session-missing");
       const accessCode = createPortalAccessCode();
       const now = Date.now();
-      const reference = await addDoc(collection(firestoreDb, "clientSubmissions"), {
-        id: "",
+      const reference = doc(collection(firestoreDb, "clientSubmissions"));
+      const access = {
+        id: accessCode,
+        accessMode: currentUser.isAnonymous ? "code" as const : "google" as const,
+        clientUid: currentUser.uid,
+        accessCode: currentUser.isAnonymous ? accessCode : null,
         ownerUid: import.meta.env.VITE_FIREBASE_ALLOWED_UID ?? "",
+      };
+      const batch = writeBatch(firestoreDb);
+      batch.set(reference, {
+        id: reference.id,
+        ownerUid: access.ownerUid,
         clientUid: currentUser.uid,
         accessCode,
-        accessMode: currentUser.isAnonymous ? "code" : "google",
+        accessMode: access.accessMode,
         ...form,
         referenceUrls: normalizeReferenceUrls(form.referenceUrls),
         state: "submitted",
         createdAt: now,
         updatedAt: now,
       });
-      await setDoc(reference, { id: reference.id }, { merge: true });
+      if (currentUser.isAnonymous) batch.set(doc(firestoreDb, "clientProgress", accessCode), buildPendingClientProgress(access, form.clientName.trim()));
+      await batch.commit();
       setResultCode(accessCode);
       setForm((current) => ({ ...emptyForm, contactEmail: currentUser.email ?? "", clientName: currentUser.displayName ?? "" }));
     } catch (nextError) {
@@ -110,6 +120,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     setSearching(true);
     setError(null);
     try {
+      if (!firebaseAuth?.currentUser) await signInWithAnonymousAccount();
       const result = await getDoc(doc(firestoreDb, "clientProgress", normalized));
       const data = result.exists() ? result.data() as ClientProgress : null;
       if (!data || data.revokedAt) {
@@ -118,7 +129,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
         return;
       }
       setCodeProgress(data);
-      window.history.replaceState({}, "", getClientProgressPath(normalized));
+      window.location.hash = getClientProgressPath(normalized).replace(/^\/#/, "");
     } catch (nextError) {
       setError(readableFirebaseError(nextError));
     } finally {

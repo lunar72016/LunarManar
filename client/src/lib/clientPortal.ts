@@ -94,6 +94,23 @@ export function buildClientProgress(commission: Commission, access: Pick<ClientP
   };
 }
 
+/** 公開送件完成後即建立僅含送達狀態的快照；繪師受理畫約後會以正式案件快照覆寫。 */
+export function buildPendingClientProgress(access: Pick<ClientProgress, "id" | "accessMode" | "clientUid" | "accessCode" | "ownerUid">, clientName: string): ClientProgress {
+  return {
+    ...access,
+    commissionId: "",
+    clientName,
+    orderCode: "委託函已送達",
+    status: "inquiry",
+    statusLabel: "等待繪師確認",
+    scheduleWeekLabel: "繪師確認後提供",
+    dueDateLabel: null,
+    nextStep: statusNextStep.inquiry,
+    updatedAt: Date.now(),
+    revokedAt: null,
+  };
+}
+
 /** 將委託人提供的雲端連結正規化；只接受 http／https，且去除重複與空白。 */
 export function normalizeReferenceUrls(value: string) {
   return Array.from(new Set(value.split(/[\n,\s]+/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item))));
