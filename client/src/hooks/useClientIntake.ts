@@ -1,4 +1,4 @@
-import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, hydrateClientSubmission, isVerifiedCodeProgress } from "@/lib/clientPortal";
+import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, getActiveCodeProgress, hydrateClientSubmission, isVerifiedCodeProgress } from "@/lib/clientPortal";
 import { Commission, createBlankCommission } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
@@ -79,6 +79,21 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     await updateDoc(doc(db, "clientProgress", progress.id), { revokedAt: Date.now(), updatedAt: Date.now() });
   }, [user?.uid]);
 
+  const getOrCreateCodeProgress = useCallback(async (commission: Commission) => {
+    const db = firestoreDb;
+    if (!db || !user) throw new Error("目前無法連接資料庫");
+    const existingSnapshot = await getDocs(query(collection(db, "clientProgress"), where("commissionId", "==", commission.id)));
+    const existing = getActiveCodeProgress(existingSnapshot.docs.map((item) => ({ ...item.data(), id: item.id } as ClientProgress)), commission.id);
+    if (existing) return existing;
+    const accessCode = createPortalAccessCode();
+    const progress = buildClientProgress(commission, { id: accessCode, accessMode: "code", clientUid: null, accessCode, ownerUid: user.uid });
+    await setDoc(doc(db, "clientProgress", progress.id), progress);
+    const confirmed = await getDocFromServer(doc(db, "clientProgress", progress.id));
+    const confirmedProgress = confirmed.exists() ? { ...confirmed.data(), id: confirmed.id } as ClientProgress : null;
+    if (!confirmedProgress || !isVerifiedCodeProgress(confirmedProgress, accessCode)) throw new Error("驗證碼進度文件未能完成伺服器同步。請確認 Firestore 規則已發布並重新建立入口。");
+    return confirmedProgress;
+  }, [user?.uid]);
+
   const publishExistingProgress = useCallback(async (commission: Commission, input: { accessMode: ClientAccessMode; clientEmail?: string; accessCode?: string }) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
@@ -91,20 +106,12 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
       if (!profile?.uid) throw new Error("尚未找到此 Google 帳號。請委託人先在公開入口使用 Google 帳號登入一次。");
       access = { id: commission.id, accessMode: "google", clientUid: profile.uid, accessCode: null, ownerUid: user.uid };
     } else {
-      const accessCode = input.accessCode ?? createPortalAccessCode();
-      access = { id: accessCode, accessMode: "code", clientUid: null, accessCode, ownerUid: user.uid };
+      return getOrCreateCodeProgress(commission);
     }
     const progress = buildClientProgress(commission, access);
     await setDoc(doc(db, "clientProgress", progress.id), progress);
-    if (access.accessMode === "code") {
-      const confirmed = await getDocFromServer(doc(db, "clientProgress", progress.id));
-      const confirmedProgress = confirmed.exists() ? confirmed.data() as ClientProgress : null;
-      if (!isVerifiedCodeProgress(confirmedProgress, access.accessCode ?? "")) {
-        throw new Error("驗證碼進度文件未能完成伺服器同步。請確認 Firestore 規則已發布並重新建立入口。");
-      }
-    }
     return progress;
-  }, [user?.uid]);
+  }, [getOrCreateCodeProgress, user?.uid]);
 
   const revokeCommissionProgress = useCallback(async (commissionId: string) => {
     const db = firestoreDb;
@@ -133,5 +140,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [discardSubmission, error, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [discardSubmission, error, getOrCreateCodeProgress, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }

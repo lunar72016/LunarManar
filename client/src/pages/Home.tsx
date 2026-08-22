@@ -91,8 +91,10 @@ function CommissionWorkspace() {
       if (submissionToAccept) {
         await intake.publishProgress(saved, submissionToAccept);
         setSubmissionToAccept(null);
+      } else if (!selected || !selected.id) {
+        await intake.getOrCreateCodeProgress(saved);
       } else await intake.syncProgress(saved);
-      toast.success(selected ? "委託單已更新" : "已建立新的委託單", { description: "已先儲存在本機，系統會在背景自動同步。" });
+      toast.success(selected ? "委託單已更新" : "已建立新的委託單", { description: submissionToAccept ? "已沿用公開填單的委託人入口。" : !selected?.id ? "已自動建立專屬驗證碼；可在「委託人入口」複製連結。" : "已先儲存在本機，系統會在背景自動同步。" });
     } catch (saveError) {
       toast.error("儲存時發生問題", { description: saveError instanceof Error ? saveError.message : "請稍後再試" });
       throw saveError;
@@ -168,7 +170,7 @@ function CommissionWorkspace() {
     <ClientAccessDialog commission={selected} open={clientAccessOpen} onOpenChange={setClientAccessOpen} onPublish={async (input) => {
       if (!selected) throw new Error("請先選擇案件。");
       const progress = await intake.publishExistingProgress(selected, input);
-      toast.success("已建立委託人進度入口", { description: progress.accessMode === "code" ? "請將專屬連結或驗證碼傳給委託人。" : "委託人可用綁定的 Google 帳號查看。" });
+      toast.success("委託人進度入口已可使用", { description: progress.accessMode === "code" ? "已取得有效專屬連結，請傳給委託人。" : "委託人可用綁定的 Google 帳號查看。" });
       return progress;
     }} onRevoke={async () => {
       if (!selected) return;

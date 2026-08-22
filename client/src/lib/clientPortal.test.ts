@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -36,6 +36,13 @@ describe("委託人入口資料工具", () => {
     expect(isVerifiedCodeProgress(progress, code)).toBe(true);
     expect(isVerifiedCodeProgress({ ...progress, accessCode: null }, code)).toBe(false);
     expect(isVerifiedCodeProgress({ ...progress, revokedAt: 1 }, code)).toBe(false);
+  });
+
+  it("reuses a valid hand-created code but ignores a revoked one when backfilling access", () => {
+    const code = "HY-0000000000000000-0000000000000000-0000000000000000";
+    const active = buildPendingClientProgress({ id: code, accessMode: "code", clientUid: null, accessCode: code, ownerUid: "artist" }, "月見");
+    expect(getActiveCodeProgress([{ ...active, commissionId: "commission-1" }], "commission-1")?.accessCode).toBe(code);
+    expect(getActiveCodeProgress([{ ...active, commissionId: "commission-1", revokedAt: 1 }], "commission-1")).toBeNull();
   });
 
   it("uses the Firestore document ID when stored submission data has a blank id", () => {

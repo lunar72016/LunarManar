@@ -135,3 +135,8 @@ export function isVerifiedCodeProgress(progress: ClientProgress | null | undefin
   const normalized = code.trim().toUpperCase();
   return Boolean(progress && progress.id === normalized && progress.accessMode === "code" && progress.accessCode === normalized && progress.revokedAt === null);
 }
+
+/** 取回同一畫約目前仍可分享的驗證碼進度；無效或已撤銷紀錄不會被沿用。 */
+export function getActiveCodeProgress(items: ClientProgress[], commissionId: string) {
+  return items.find((item) => item.commissionId === commissionId && isVerifiedCodeProgress(item, item.accessCode ?? "")) ?? null;
+}
