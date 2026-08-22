@@ -56,6 +56,10 @@ export function isAllowedArtist(uid: string | null | undefined) {
   return Boolean(uid && allowedArtistUid && uid === allowedArtistUid);
 }
 
+export function isSafariBrowser(userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent) {
+  return /safari/i.test(userAgent) && !/chrome|chromium|crios|android/i.test(userAgent);
+}
+
 /** 將 Firebase Authentication 常見錯誤轉為可直接處理的繁中提示。 */
 export function describeFirebaseAuthError(error: unknown) {
   const rawMessage = error instanceof Error ? error.message : String(error ?? "");

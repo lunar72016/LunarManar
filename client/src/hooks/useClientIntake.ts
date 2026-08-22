@@ -1,8 +1,8 @@
-import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, hydrateClientSubmission } from "@/lib/clientPortal";
+import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, hydrateClientSubmission, isVerifiedCodeProgress } from "@/lib/clientPortal";
 import { Commission, createBlankCommission } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
-import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocFromServer, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function commissionFromClientSubmission(submission: ClientSubmission): Commission {
@@ -96,6 +96,13 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }
     const progress = buildClientProgress(commission, access);
     await setDoc(doc(db, "clientProgress", progress.id), progress);
+    if (access.accessMode === "code") {
+      const confirmed = await getDocFromServer(doc(db, "clientProgress", progress.id));
+      const confirmedProgress = confirmed.exists() ? confirmed.data() as ClientProgress : null;
+      if (!isVerifiedCodeProgress(confirmedProgress, access.accessCode ?? "")) {
+        throw new Error("驗證碼進度文件未能完成伺服器同步。請確認 Firestore 規則已發布並重新建立入口。");
+      }
+    }
     return progress;
   }, [user?.uid]);
 

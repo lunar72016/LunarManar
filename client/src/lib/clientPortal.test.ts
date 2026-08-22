@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -28,6 +28,14 @@ describe("委託人入口資料工具", () => {
 
     expect(progress).toMatchObject({ id: code, commissionId: "", status: "inquiry", statusLabel: "等待繪師確認", scheduleWeekLabel: "繪師確認後提供" });
     expect(progress).not.toHaveProperty("requirements");
+  });
+
+  it("accepts only an active server record that exactly matches a hand-created code", () => {
+    const code = "HY-0000000000000000-0000000000000000-0000000000000000";
+    const progress = buildPendingClientProgress({ id: code, accessMode: "code", clientUid: null, accessCode: code, ownerUid: "artist" }, "月見");
+    expect(isVerifiedCodeProgress(progress, code)).toBe(true);
+    expect(isVerifiedCodeProgress({ ...progress, accessCode: null }, code)).toBe(false);
+    expect(isVerifiedCodeProgress({ ...progress, revokedAt: 1 }, code)).toBe(false);
   });
 
   it("uses the Firestore document ID when stored submission data has a blank id", () => {

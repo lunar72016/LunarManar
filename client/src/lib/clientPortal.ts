@@ -129,3 +129,9 @@ export function getPendingClientSubmissions(items: ClientSubmission[]) {
 export function getClientProgressPath(code: string) {
   return `/#/client/progress/${encodeURIComponent(code.trim().toUpperCase())}`;
 }
+
+/** 驗證已從伺服器讀回的公開進度是否可由該專屬驗證碼安全存取。 */
+export function isVerifiedCodeProgress(progress: ClientProgress | null | undefined, code: string) {
+  const normalized = code.trim().toUpperCase();
+  return Boolean(progress && progress.id === normalized && progress.accessMode === "code" && progress.accessCode === normalized && progress.revokedAt === null);
+}

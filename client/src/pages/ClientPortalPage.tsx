@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
+import { SafariGoogleSignInHint } from "@/components/SafariGoogleSignInHint";
 import { ClientProgress, ClientSubmission, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
 import { describeAnonymousAuthError, describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
 import { CheckCircle2, ClipboardList, KeyRound, LoaderCircle, LogIn, MoonStar, ShieldCheck, Sparkles } from "lucide-react";
@@ -173,7 +174,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<ClipboardList />}>填寫委託</TabButton>
           <TabButton active={tab === "progress"} onClick={() => setTab("progress")} icon={<Sparkles />}>查看進度</TabButton>
         </div>
-        {(error || googleSignInIssue) && <p className="mt-4 rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error || googleSignInIssue}</p>}
+        {(error || googleSignInIssue) && <div className="mt-4 space-y-3"><p className="rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error || googleSignInIssue}</p><SafariGoogleSignInHint visible={Boolean(googleSignInIssue)} /></div>}
         {tab === "submit" ? (
           <SubmissionForm
             form={form}
