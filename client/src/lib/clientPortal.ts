@@ -12,6 +12,7 @@ export type ClientProfile = {
 
 export type ClientSubmission = {
   id: string;
+  commissionId?: string;
   accessMode: ClientAccessMode;
   clientUid: string | null;
   accessCode: string | null;
@@ -93,9 +94,36 @@ export function buildClientProgress(commission: Commission, access: Pick<ClientP
   };
 }
 
+/** 公開送件完成後即建立僅含送達狀態的快照；繪師受理畫約後會以正式案件快照覆寫。 */
+export function buildPendingClientProgress(access: Pick<ClientProgress, "id" | "accessMode" | "clientUid" | "accessCode" | "ownerUid">, clientName: string): ClientProgress {
+  return {
+    ...access,
+    commissionId: "",
+    clientName,
+    orderCode: "委託函已送達",
+    status: "inquiry",
+    statusLabel: "等待繪師確認",
+    scheduleWeekLabel: "繪師確認後提供",
+    dueDateLabel: null,
+    nextStep: statusNextStep.inquiry,
+    updatedAt: Date.now(),
+    revokedAt: null,
+  };
+}
+
 /** 將委託人提供的雲端連結正規化；只接受 http／https，且去除重複與空白。 */
 export function normalizeReferenceUrls(value: string) {
   return Array.from(new Set(value.split(/[\n,\s]+/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item))));
+}
+
+/** Firestore 的文件 ID 為唯一可信識別，避免舊資料中的空白 id 導致文件路徑缺少最後一段。 */
+export function hydrateClientSubmission(documentId: string, data: ClientSubmission): ClientSubmission {
+  return { ...data, id: documentId };
+}
+
+/** 僅顯示仍待繪師決定的公開送件；已取消或已受理的函件不應留在待閱清單。 */
+export function getPendingClientSubmissions(items: ClientSubmission[]) {
+  return items.filter((item) => item.state === "submitted");
 }
 
 export function getClientProgressPath(code: string) {

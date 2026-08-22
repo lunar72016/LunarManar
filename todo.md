@@ -237,7 +237,19 @@
 - [ ] 在 Firebase Console 啟用 Google 與 Anonymous Provider、發布 firestore.rules，並以第二個帳號實機驗證資料隔離
 - [x] 改善共用登入頁 Google 帳號登入失敗的錯誤提示，指出 Provider、授權網域與彈出式視窗問題
 - [ ] 在 Firebase Console 確認 Google Provider 已啟用，並將 GitHub Pages 網域加入 Authorized domains
-- [ ] 建立包含共用登入、委託人入口與 Google 登入診斷的最新 GitHub 上傳 ZIP
+- [x] 建立包含共用登入、委託人入口與 Google 登入診斷的最新 GitHub 上傳 ZIP
+- [ ] 由使用者在 GitHub 儲存庫根目錄刪除殘留 vite.ts，修正其遮蔽 Vite 套件造成的 pnpm check 失敗
+- [ ] 以乾淨安裝驗證 pnpm check、test、build，並重建修正版 GitHub 上傳 ZIP
+- [ ] 修正或發布 Firestore 規則，使繪師可讀取委託函 clientIntakes 清單且不出現權限錯誤
+- [x] 修正委託人送件、受理與刪除時的 Firestore 文件參照，避免奇數路徑錯誤
+- [ ] 以測試帳號實機驗證委託函送出、繪師受理、畫約儲存與刪除流程
+- [x] 刪除已受理排單時同步移除或更新對應委託函，避免委託函清單殘留
+- [x] 讓未受理委託函可直接刪除並立即從委託函清單移除
+- [x] 在共用登入封面恢復未登入可直接填寫委託的公開入口按鈕
+- [x] 修正未受理委託函刪除後仍留在清單的實機問題，顯示可操作的錯誤訊息
+- [x] 修正封面未登入公開填單按鈕，點擊後立即以單頁路由進入填單而不需重新整理
+- [x] 修正專屬驗證碼的公開進度查詢、連結導向與 Firestore 存取流程
+- [x] 修正匿名填單與驗證碼查詢錯誤誤顯示 Google Provider 設定提示的問題
 - [x] 在繪師登入頁加入清楚的委託人入口連結與 Google／驗證碼進度查看說明
 - [x] 將首頁登入改為共用入口，讓繪師、Google 委託人與驗證碼使用者在同頁開始
 - [x] 依繪師 UID 分流至工作台，依 Google 委託人帳號分流至個人填單與案件進度

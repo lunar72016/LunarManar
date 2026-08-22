@@ -66,3 +66,11 @@ export function describeFirebaseAuthError(error: unknown) {
   if (code === "auth/network-request-failed") return "Google 登入需要網路連線，請確認網路後再試。";
   return "Google 登入目前無法使用，請確認 Firebase Authentication 的 Google Provider 與授權網域設定。";
 }
+
+/** 公開填單使用匿名帳號建立受限工作階段，錯誤提示不可誤導成 Google 登入問題。 */
+export function describeAnonymousAuthError(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  if (code === "auth/operation-not-allowed") return "公開填單需要匿名登入。請通知繪師在 Firebase Authentication 的 Sign-in method 啟用 Anonymous Provider。";
+  if (code === "auth/network-request-failed") return "建立公開填單工作階段需要網路連線，請確認網路後再試。";
+  return "目前無法建立公開填單工作階段，請稍後再試或通知繪師檢查 Firebase Authentication 設定。";
+}

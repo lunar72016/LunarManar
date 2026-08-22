@@ -114,6 +114,7 @@ export function useCommissions(user: User | null, isAllowed: boolean) {
   const deleteCommission = useCallback(async (id: string) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
+    if (!id) return;
     setCommissions((current) => current.filter((item) => item.id !== id));
     setSyncState("pending");
     void deleteDoc(doc(db, "artists", user.uid, "commissions", id)).catch(reportWriteFailure);

@@ -1,8 +1,8 @@
-import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode } from "@/lib/clientPortal";
+import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, hydrateClientSubmission } from "@/lib/clientPortal";
 import { Commission, createBlankCommission } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
-import { collection, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function commissionFromClientSubmission(submission: ClientSubmission): Commission {
@@ -32,7 +32,7 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     setLoading(true);
     const source = query(collection(db, "clientSubmissions"), where("ownerUid", "==", user.uid));
     return onSnapshot(source, (snapshot) => {
-      setSubmissions(snapshot.docs.map((item) => item.data() as ClientSubmission).sort((a, b) => b.createdAt - a.createdAt));
+      setSubmissions(snapshot.docs.map((item) => hydrateClientSubmission(item.id, item.data() as ClientSubmission)).sort((a, b) => b.createdAt - a.createdAt));
       setLoading(false);
     }, (nextError) => {
       setError(nextError.message.includes("permission-denied") ? "尚未發布委託人入口的 Firestore 規則。" : nextError.message);
@@ -48,9 +48,30 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
       : { id: commission.id, accessMode: "google" as const, clientUid: submission.clientUid, accessCode: null, ownerUid: user.uid };
     const progress = buildClientProgress(commission, access);
     await setDoc(doc(db, "clientProgress", progress.id), progress);
+    if (!submission.id) throw new Error("委託函缺少文件識別碼，請重新整理後再受理。");
     await updateDoc(doc(db, "clientSubmissions", submission.id), { state: "accepted", updatedAt: Date.now(), commissionId: commission.id });
     return progress;
   }, [user?.uid]);
+
+  const discardSubmission = useCallback(async (submissionId: string) => {
+    const db = firestoreDb;
+    if (!db || !user) throw new Error("目前無法連接資料庫");
+    if (!submissionId) throw new Error("委託函缺少文件識別碼，請重新整理後再刪除。");
+    const removed = submissions.find((item) => item.id === submissionId);
+    setSubmissions((current) => current.filter((item) => item.id !== submissionId));
+    try {
+      await deleteDoc(doc(db, "clientSubmissions", submissionId));
+      return await Promise.race([
+        waitForPendingWrites(db).then(() => "confirmed" as const),
+        new Promise<"offline">((resolve) => window.setTimeout(() => resolve("offline"), 3500)),
+      ]);
+    } catch (error) {
+      if (removed) setSubmissions((current) => current.some((item) => item.id === removed.id) ? current : [...current, removed].sort((a, b) => b.createdAt - a.createdAt));
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("permission-denied") || message.includes("insufficient permissions")) throw new Error("Firebase 未允許繪師刪除委託函。請在 Firebase Console 發布最新版 firestore.rules 後再試。");
+      throw error;
+    }
+  }, [submissions, user?.uid]);
 
   const revokeProgress = useCallback(async (progress: ClientProgress) => {
     const db = firestoreDb;
@@ -85,6 +106,16 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     await Promise.all(matches.docs.map((item) => updateDoc(item.ref, { revokedAt: Date.now(), updatedAt: Date.now() })));
   }, [user?.uid]);
 
+  const removeCommissionPortalRecords = useCallback(async (commissionId: string) => {
+    const db = firestoreDb;
+    if (!db || !user || !commissionId) return;
+    const [submissionMatches, progressMatches] = await Promise.all([
+      getDocs(query(collection(db, "clientSubmissions"), where("commissionId", "==", commissionId))),
+      getDocs(query(collection(db, "clientProgress"), where("commissionId", "==", commissionId))),
+    ]);
+    await Promise.all([...submissionMatches.docs, ...progressMatches.docs].map((item) => deleteDoc(item.ref)));
+  }, [user?.uid]);
+
   const syncProgress = useCallback(async (commission: Commission) => {
     const db = firestoreDb;
     if (!db || !user) return;
@@ -95,5 +126,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, revokeProgress, publishExistingProgress, revokeCommissionProgress, syncProgress }), [error, loading, publishExistingProgress, publishProgress, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [discardSubmission, error, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }

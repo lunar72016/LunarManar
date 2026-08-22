@@ -3,10 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
-import { ClientProgress, ClientSubmission, createPortalAccessCode, getClientProgressPath, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
-import { describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
+import { ClientProgress, ClientSubmission, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
+import { describeAnonymousAuthError, describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
 import { CheckCircle2, ClipboardList, KeyRound, LoaderCircle, LogIn, MoonStar, ShieldCheck, Sparkles } from "lucide-react";
-import { addDoc, collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, query, setDoc, where, writeBatch } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 
 type PortalTab = "submit" | "progress";
@@ -19,8 +19,14 @@ function readableFirebaseError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes("auth/")) return describeFirebaseAuthError(error);
   if (message.includes("auth/operation-not-allowed")) return "此登入方式尚未啟用。請通知繪師於 Firebase Authentication 開啟 Google 或 Anonymous Provider。";
-  if (message.includes("permission-denied")) return "資料庫尚未套用委託人入口規則，請通知繪師發布最新版 firestore.rules。";
+  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "資料庫尚未套用委託人入口規則，請通知繪師在 Firebase Console 發布最新版 firestore.rules 後再試。";
   return "目前無法完成操作，請確認網路後再試。";
+}
+
+function readableCodeLookupError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "找不到可用的進度連結。請確認驗證碼，或請繪師先建立／重新提供專屬驗證碼。";
+  return readableFirebaseError(error);
 }
 
 export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTab }) {
@@ -42,6 +48,20 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
   const [mySubmissions, setMySubmissions] = useState<ClientSubmission[]>([]);
 
   useEffect(() => {
+    const syncProgressRoute = () => {
+      const route = window.location.hash.replace(/^#/, "") || window.location.pathname;
+      const match = route.match(/^\/client\/progress\/([^/]+)$/);
+      if (!match) return;
+      const nextCode = decodeURIComponent(match[1]).toUpperCase();
+      setCode(nextCode);
+      setTab("progress");
+    };
+    syncProgressRoute();
+    window.addEventListener("hashchange", syncProgressRoute);
+    return () => window.removeEventListener("hashchange", syncProgressRoute);
+  }, []);
+
+  useEffect(() => {
     if (!user || user.isAnonymous || !firestoreDb) return;
     void setDoc(doc(firestoreDb, "clientProfiles", user.uid), {
       uid: user.uid, email: user.email ?? "", displayName: user.displayName ?? "", updatedAt: Date.now(),
@@ -57,7 +77,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     const progressQuery = query(collection(firestoreDb, "clientProgress"), where("clientUid", "==", user.uid), where("revokedAt", "==", null));
     const submissionQuery = query(collection(firestoreDb, "clientSubmissions"), where("clientUid", "==", user.uid));
     const unsubscribeProgress = onSnapshot(progressQuery, (snapshot) => setMyProgress(snapshot.docs.map((item) => item.data() as ClientProgress)), () => setMyProgress([]));
-    const unsubscribeSubmissions = onSnapshot(submissionQuery, (snapshot) => setMySubmissions(snapshot.docs.map((item) => item.data() as ClientSubmission).sort((a, b) => b.createdAt - a.createdAt)), () => setMySubmissions([]));
+    const unsubscribeSubmissions = onSnapshot(submissionQuery, (snapshot) => setMySubmissions(snapshot.docs.map((item) => hydrateClientSubmission(item.id, item.data() as ClientSubmission)).sort((a, b) => b.createdAt - a.createdAt)), () => setMySubmissions([]));
     return () => { unsubscribeProgress(); unsubscribeSubmissions(); };
   }, [user?.uid]);
 
@@ -76,24 +96,37 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     setSubmitting(true);
     setError(null);
     try {
-      if (!firebaseAuth?.currentUser) await signInWithAnonymousAccount();
+      if (!firebaseAuth?.currentUser) {
+        try { await signInWithAnonymousAccount(); }
+        catch (authError) { setError(describeAnonymousAuthError(authError)); return; }
+      }
       const currentUser = firebaseAuth?.currentUser;
       if (!currentUser) throw new Error("auth/session-missing");
       const accessCode = createPortalAccessCode();
       const now = Date.now();
-      const reference = await addDoc(collection(firestoreDb, "clientSubmissions"), {
-        id: "",
+      const reference = doc(collection(firestoreDb, "clientSubmissions"));
+      const access = {
+        id: accessCode,
+        accessMode: currentUser.isAnonymous ? "code" as const : "google" as const,
+        clientUid: currentUser.uid,
+        accessCode: currentUser.isAnonymous ? accessCode : null,
         ownerUid: import.meta.env.VITE_FIREBASE_ALLOWED_UID ?? "",
+      };
+      const batch = writeBatch(firestoreDb);
+      batch.set(reference, {
+        id: reference.id,
+        ownerUid: access.ownerUid,
         clientUid: currentUser.uid,
         accessCode,
-        accessMode: currentUser.isAnonymous ? "code" : "google",
+        accessMode: access.accessMode,
         ...form,
         referenceUrls: normalizeReferenceUrls(form.referenceUrls),
         state: "submitted",
         createdAt: now,
         updatedAt: now,
       });
-      await setDoc(reference, { id: reference.id }, { merge: true });
+      if (currentUser.isAnonymous) batch.set(doc(firestoreDb, "clientProgress", accessCode), buildPendingClientProgress(access, form.clientName.trim()));
+      await batch.commit();
       setResultCode(accessCode);
       setForm((current) => ({ ...emptyForm, contactEmail: currentUser.email ?? "", clientName: currentUser.displayName ?? "" }));
     } catch (nextError) {
@@ -118,9 +151,9 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
         return;
       }
       setCodeProgress(data);
-      window.history.replaceState({}, "", getClientProgressPath(normalized));
+      window.location.hash = getClientProgressPath(normalized).replace(/^\/#/, "");
     } catch (nextError) {
-      setError(readableFirebaseError(nextError));
+      setError(readableCodeLookupError(nextError));
     } finally {
       setSearching(false);
     }
