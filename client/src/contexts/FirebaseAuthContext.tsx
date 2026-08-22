@@ -18,6 +18,7 @@ type FirebaseAuthContextValue = {
   configured: boolean;
   isAllowed: boolean;
   googleSignInIssue: string | null;
+  clearGoogleSignInIssue: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithAnonymousAccount: () => Promise<void>;
@@ -54,6 +55,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
       configured: firebaseConfigured,
       isAllowed: isAllowedArtist(user?.uid),
       googleSignInIssue,
+      clearGoogleSignInIssue: () => setGoogleSignInIssue(null),
       signIn: async (email, password) => {
         if (!firebaseAuth) throw new Error("Firebase 尚未設定完成");
         await signInWithEmailAndPassword(firebaseAuth, email, password);
@@ -80,6 +82,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
         if (!firebaseAuth.currentUser) await signInAnonymously(firebaseAuth);
       },
       signOut: async () => {
+        setGoogleSignInIssue(null);
         if (firebaseAuth) await firebaseSignOut(firebaseAuth);
       },
     }),

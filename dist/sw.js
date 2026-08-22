@@ -78,12 +78,12 @@ define(['./workbox-7e5eb42b'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "ad38df5f34f80fbbb3605856ba1d8077"
+    "revision": "4adc468a3664eaef2954cd8b22b0f890"
   }, {
     "url": "hui-yue-title.svg",
     "revision": "08f4d00d1325ea519dd08ed1d5646d82"
   }, {
-    "url": "assets/index-CtdFWSon.js",
+    "url": "assets/index-DGjPEdGF.js",
     "revision": null
   }, {
     "url": "assets/index-B00ecNBQ.css",

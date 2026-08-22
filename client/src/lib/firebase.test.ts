@@ -13,8 +13,13 @@ describe("Firebase Authentication 錯誤提示", () => {
     expect(message).not.toContain("Google 登入");
   });
 
-  it("identifies browser storage restrictions and preserves unknown error codes", () => {
+  it("identifies browser storage restrictions and explains unknown browser rejections", () => {
     expect(describeFirebaseAuthError({ code: "auth/web-storage-unsupported" })).toContain("Cookie");
-    expect(describeFirebaseAuthError({ code: "auth/example-browser-error" })).toContain("auth/example-browser-error");
+    expect(describeFirebaseAuthError({ code: "auth/example-browser-error" })).toContain("跨網站登入環境");
+  });
+
+  it("extracts Firebase codes from an error message and identifies blocked browser environments", () => {
+    expect(describeFirebaseAuthError(new Error("Firebase: Error (auth/unauthorized-domain)."))).toContain("lunar72016.github.io");
+    expect(describeFirebaseAuthError(new Error("Third-party cookie blocked by browser"))).toContain("跨網站資料");
   });
 });

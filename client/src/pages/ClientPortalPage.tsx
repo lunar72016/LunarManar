@@ -30,7 +30,7 @@ function readableCodeLookupError(error: unknown) {
 }
 
 export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTab }) {
-  const { user, loading, signInWithGoogle, signInWithAnonymousAccount, signOut, googleSignInIssue } = useFirebaseAuth();
+  const { user, loading, signInWithGoogle, signInWithAnonymousAccount, signOut, googleSignInIssue, clearGoogleSignInIssue } = useFirebaseAuth();
   const routeCode = useMemo(() => {
     const route = window.location.hash.replace(/^#/, "") || window.location.pathname;
     const match = route.match(/^\/client\/progress\/([^/]+)$/);
@@ -142,6 +142,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     if (!firestoreDb) { setError("Firebase 尚未設定完成。"); return; }
     setSearching(true);
     setError(null);
+    clearGoogleSignInIssue();
     try {
       const result = await getDoc(doc(firestoreDb, "clientProgress", normalized));
       const data = result.exists() ? result.data() as ClientProgress : null;
