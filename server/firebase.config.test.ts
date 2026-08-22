@@ -9,11 +9,11 @@ describe("Firebase Web App configuration", () => {
     expect(projectId).toBe("muingmanager");
 
     const response = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey ?? "")}`,
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey ?? "")}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ returnSecureToken: true }),
+        body: JSON.stringify({ idToken: "invalid-test-token" }),
       },
     );
     const payload = (await response.json()) as { error?: { message?: string } };

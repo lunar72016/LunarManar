@@ -12,4 +12,9 @@ describe("Firebase Authentication 錯誤提示", () => {
     expect(message).toContain("Anonymous Provider");
     expect(message).not.toContain("Google 登入");
   });
+
+  it("identifies browser storage restrictions and preserves unknown error codes", () => {
+    expect(describeFirebaseAuthError({ code: "auth/web-storage-unsupported" })).toContain("Cookie");
+    expect(describeFirebaseAuthError({ code: "auth/example-browser-error" })).toContain("auth/example-browser-error");
+  });
 });

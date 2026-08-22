@@ -64,7 +64,10 @@ export function describeFirebaseAuthError(error: unknown) {
   if (code === "auth/popup-blocked") return "瀏覽器封鎖了 Google 登入視窗。請允許此網站開啟彈出式視窗後再試。";
   if (code === "auth/popup-closed-by-user") return "Google 登入視窗已關閉，尚未完成登入。";
   if (code === "auth/network-request-failed") return "Google 登入需要網路連線，請確認網路後再試。";
-  return "Google 登入目前無法使用，請確認 Firebase Authentication 的 Google Provider 與授權網域設定。";
+  if (code === "auth/web-storage-unsupported") return "此瀏覽器封鎖了登入所需的網站資料。請允許本站 Cookie／網站資料後重試，或改用一般 Chrome、Safari、Firefox 視窗。";
+  if (code === "auth/operation-not-supported-in-this-environment") return "此瀏覽器不支援彈出式 Google 登入，系統將改以完整頁面登入方式開啟。";
+  if (code === "auth/redirect-cancelled-by-user") return "Google 登入導向已取消，請重新選擇帳號後再試。";
+  return `Google 登入目前無法完成（錯誤代碼：${code || "unknown"}）。請將此代碼提供給繪師以便進一步確認。`;
 }
 
 /** 公開填單使用匿名帳號建立受限工作階段，錯誤提示不可誤導成 Google 登入問題。 */

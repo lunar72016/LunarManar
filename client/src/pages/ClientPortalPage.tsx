@@ -30,7 +30,7 @@ function readableCodeLookupError(error: unknown) {
 }
 
 export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTab }) {
-  const { user, loading, signInWithGoogle, signInWithAnonymousAccount, signOut } = useFirebaseAuth();
+  const { user, loading, signInWithGoogle, signInWithAnonymousAccount, signOut, googleSignInIssue } = useFirebaseAuth();
   const routeCode = useMemo(() => {
     const route = window.location.hash.replace(/^#/, "") || window.location.pathname;
     const match = route.match(/^\/client\/progress\/([^/]+)$/);
@@ -172,7 +172,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<ClipboardList />}>填寫委託</TabButton>
           <TabButton active={tab === "progress"} onClick={() => setTab("progress")} icon={<Sparkles />}>查看進度</TabButton>
         </div>
-        {error && <p className="mt-4 rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error}</p>}
+        {(error || googleSignInIssue) && <p className="mt-4 rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error || googleSignInIssue}</p>}
         {tab === "submit" ? (
           <SubmissionForm
             form={form}
