@@ -3,6 +3,7 @@ import { CommissionDialog } from "@/components/CommissionDialog";
 import { ClientAccessDialog } from "@/components/ClientAccessDialog";
 import { SafariGoogleSignInHint } from "@/components/SafariGoogleSignInHint";
 import { CommissionViewDialog } from "@/components/CommissionViewDialog";
+import { AuthLanding } from "@/components/AuthLanding";
 import DashboardLayout, { WorkspaceView } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,7 @@ import { Commission, CommissionStatus, PendingPaymentCommission, applyAutomaticP
 import StudioSettingsPage from "@/pages/StudioSettingsPage";
 import ClientPortalPage from "@/pages/ClientPortalPage";
 import { getClientProgressPath, getPendingClientSubmissions, isPortalAccessCode } from "@/lib/clientPortal";
-import { describeFirebaseAuthError, firestoreDb } from "@/lib/firebase";
+import { describeEmailPasswordAuthError, describeFirebaseAuthError, firestoreDb } from "@/lib/firebase";
 import { ArchiveRestore, BadgePlus, CalendarClock, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
@@ -30,7 +31,7 @@ export default function Home() {
   const auth = useFirebaseAuth();
   if (auth.loading) return <LoadingScreen />;
   if (!auth.configured) return <ConfigMissing />;
-  if (!auth.user) return <LoginScreen />;
+  if (!auth.user) return <AuthLanding />;
   if (!auth.isAllowed) return <ClientPortalPage initialTab="progress" />;
   return <CommissionWorkspace />;
 }
@@ -271,7 +272,7 @@ function LoginScreen() {
   const [portalCode, setPortalCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); setSubmitting(true); setError(""); try { await signIn(email, password); } catch { setError("無法登入，請確認電子郵件、密碼與 Firebase Authentication 設定。"); } finally { setSubmitting(false); } };
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setSubmitting(true); setError(""); try { await signIn(email.trim(), password); } catch (nextError) { setError(describeEmailPasswordAuthError(nextError)); } finally { setSubmitting(false); } };
   const googleLogin = async () => { setError(""); try { await signInWithGoogle(); } catch (nextError) { setError(describeFirebaseAuthError(nextError)); } };
   const openClientPortal = () => { clearGoogleSignInIssue(); setError(""); window.location.hash = "/client"; };
   const lookupProgress = () => { const normalized = portalCode.trim().toUpperCase(); if (!isPortalAccessCode(normalized)) { setError("請輸入完整的對契符節。"); return; } clearGoogleSignInIssue(); setError(""); window.location.hash = getClientProgressPath(normalized).replace(/^\/#/, ""); };

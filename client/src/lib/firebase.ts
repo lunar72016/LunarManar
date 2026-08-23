@@ -78,6 +78,20 @@ export function describeFirebaseAuthError(error: unknown) {
   return "此瀏覽器拒絕了 Google 的跨網站登入環境。請關閉此網站的嚴格追蹤防護、允許第三方 Cookie 後重試；若仍失敗，請改用一般 Chrome、Safari 或 Firefox 視窗。";
 }
 
+/** 繪師帳密登入的錯誤不可套用 Google／瀏覽器登入提示。 */
+export function describeEmailPasswordAuthError(error: unknown) {
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+  const codeFromObject = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  const code = codeFromObject || rawMessage.match(/auth\/[a-z0-9-]+/i)?.[0]?.toLowerCase() || "";
+  if (code === "auth/operation-not-allowed") return "Email／Password 尚未啟用。請在 Firebase Authentication → Sign-in method 啟用「Email/Password」。";
+  if (code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password") return "電子郵件或密碼不正確。以 Google 建立的帳號不會自動擁有帳密，請使用 Google 登入，或在 Firebase 建立 Email／Password 帳號。";
+  if (code === "auth/invalid-email") return "電子郵件格式不正確。";
+  if (code === "auth/too-many-requests") return "嘗試登入次數過多，請稍後再試，或改用 Google 登入。";
+  if (code === "auth/network-request-failed") return "帳密登入需要網路連線，請確認網路後再試。";
+  return `帳密登入目前無法完成${code ? `（錯誤代碼：${code}）` : ""}。請確認 Firebase Authentication 的 Email/Password 設定。`;
+}
+
+
 /** 公開填單使用匿名帳號建立受限工作階段，錯誤提示不可誤導成 Google 登入問題。 */
 export function describeAnonymousAuthError(error: unknown) {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";

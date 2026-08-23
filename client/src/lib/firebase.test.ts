@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeAnonymousAuthError, describeFirebaseAuthError, isSafariBrowser } from "./firebase";
+import { describeAnonymousAuthError, describeEmailPasswordAuthError, describeFirebaseAuthError, isSafariBrowser } from "./firebase";
 
 describe("Firebase Authentication 錯誤提示", () => {
   it("explains missing Google provider and unauthorized domains", () => {
@@ -11,6 +11,12 @@ describe("Firebase Authentication 錯誤提示", () => {
     const message = describeAnonymousAuthError({ code: "auth/operation-not-allowed" });
     expect(message).toContain("Anonymous Provider");
     expect(message).not.toContain("Google 登入");
+  });
+
+  it("separates email password diagnostics from Google sign-in diagnostics", () => {
+    expect(describeEmailPasswordAuthError({ code: "auth/operation-not-allowed" })).toContain("Email/Password");
+    expect(describeEmailPasswordAuthError({ code: "auth/invalid-credential" })).toContain("Google 建立的帳號");
+    expect(describeEmailPasswordAuthError({ code: "auth/invalid-credential" })).not.toContain("Google Provider");
   });
 
   it("identifies browser storage restrictions and explains unknown browser rejections", () => {
