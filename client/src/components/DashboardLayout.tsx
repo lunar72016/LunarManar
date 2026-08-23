@@ -9,7 +9,7 @@ const menuItems: { id: WorkspaceView; label: string; icon: typeof LayoutDashboar
   { id: "dashboard", label: "千繪總覽", icon: LayoutDashboard },
   { id: "board", label: "排畫連雲", icon: ListTree },
   { id: "archive", label: "封畫入卷", icon: Archive },
-  { id: "intake", label: "委託函", icon: Inbox },
+  { id: "intake", label: "墨諾函箋", icon: Inbox },
   { id: "settings", label: "丹青設案", icon: Settings2 },
 ];
 const titleIconSrc = `${import.meta.env.BASE_URL}hui-yue-title.svg`;

@@ -17,6 +17,14 @@ export function commissionFromClientSubmission(submission: ClientSubmission): Co
     costumeDesignNote: submission.costumeDesignNote,
     accessoryNote: submission.accessoryNote,
     requirements: [submission.requirements, submission.deliveryNote && `期限／補充：${submission.deliveryNote}`, submission.referenceUrls.length ? `設定稿／參考網址：\n${submission.referenceUrls.join("\n")}` : ""].filter(Boolean).join("\n\n"),
+    scheduleType: submission.scheduleType ?? "queued",
+    artworkItems: submission.artworkItems ?? [],
+    isRush: submission.isRush ?? false,
+    licenses: submission.licenses ?? [],
+    deliveryPreference: submission.deliveryPreference ?? "unspecified",
+    dueDate: submission.dueDate ?? null,
+    rushRequestedAt: submission.isRush ? submission.createdAt : null,
+    estimatedPrice: submission.estimatedPrice ?? null,
     sourceNote: `委託人公開填單 · ${submission.id}`,
   };
 }

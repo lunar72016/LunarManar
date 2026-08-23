@@ -1,4 +1,4 @@
-import { Commission, CommissionStatus, formatDisplayDate, getCommissionScheduleWeek, statusMeta, weekLabel } from "./commission";
+import { ArtworkItem, Commission, CommissionStatus, LicenseOption, PaymentState, ScheduleType, formatDisplayDate, getCommissionScheduleWeek, statusMeta, weekLabel } from "@/lib/commission";
 
 export type ClientAccessMode = "google" | "code";
 export type ClientSubmissionState = "submitted" | "accepted" | "declined";
@@ -28,6 +28,13 @@ export type ClientSubmission = {
   requirements: string;
   referenceUrls: string[];
   deliveryNote: string;
+  scheduleType?: ScheduleType;
+  artworkItems?: ArtworkItem[];
+  isRush?: boolean;
+  licenses?: LicenseOption[];
+  deliveryPreference?: "unspecified" | "date";
+  dueDate?: number | null;
+  estimatedPrice?: number | null;
   state: ClientSubmissionState;
   createdAt: number;
   updatedAt: number;
@@ -47,6 +54,18 @@ export type ClientProgress = {
   scheduleWeekLabel: string;
   dueDateLabel: string | null;
   nextStep: string;
+  createdAt: number;
+  scheduleType: ScheduleType;
+  isRush: boolean;
+  artworkItems: Array<{ id: string; summary: string }>;
+  totalAmount: number | null;
+  depositAmount: number | null;
+  depositState: PaymentState;
+  depositPaidAt: number | null;
+  balanceAmount: number | null;
+  balanceState: PaymentState;
+  balancePaidAt: number | null;
+  statusHistory: Array<{ status: CommissionStatus; at: number }>;
   updatedAt: number;
   revokedAt: number | null;
 };
@@ -76,7 +95,7 @@ export function isPortalAccessCode(value: string) {
   return /^HY-[0-9A-Z]{16}-[0-9A-Z]{16}-[0-9A-Z]{16}$/.test(value.trim().toUpperCase());
 }
 
-/** 僅保留可在委託人端顯示的進度欄位，避免報價、收款、內部備註與需求原文外洩。 */
+/** 僅保留寄墨主端可顯示的畫約、款項與進度欄位，避免設定稿、內部備註與需求原文外洩。 */
 export function buildClientProgress(commission: Commission, access: Pick<ClientProgress, "id" | "accessMode" | "clientUid" | "accessCode" | "ownerUid">): ClientProgress {
   const dueDateLabel = commission.dueDate ? formatDisplayDate(commission.dueDate) : null;
   return {
@@ -89,6 +108,18 @@ export function buildClientProgress(commission: Commission, access: Pick<ClientP
     scheduleWeekLabel: weekLabel(getCommissionScheduleWeek(commission)),
     dueDateLabel,
     nextStep: statusNextStep[commission.status],
+    createdAt: commission.createdAt,
+    scheduleType: commission.scheduleType,
+    isRush: commission.isRush,
+    artworkItems: commission.artworkItems.map((item) => ({ id: item.id, summary: item.artScope === "Q版" ? `${item.characterCount} 人 · Q版 ${item.qSize ?? "未選規格"}` : `${item.characterCount} 人 · ${item.artScope} · ${item.finishLevel}` })),
+    totalAmount: commission.totalAmount,
+    depositAmount: commission.depositAmount,
+    depositState: commission.depositState,
+    depositPaidAt: commission.depositPaidAt,
+    balanceAmount: commission.balanceAmount,
+    balanceState: commission.balanceState,
+    balancePaidAt: commission.balancePaidAt,
+    statusHistory: commission.statusHistory.map((item) => ({ status: item.status, at: item.at })),
     updatedAt: Date.now(),
     revokedAt: null,
   };
@@ -106,6 +137,18 @@ export function buildPendingClientProgress(access: Pick<ClientProgress, "id" | "
     scheduleWeekLabel: "繪師確認後提供",
     dueDateLabel: null,
     nextStep: statusNextStep.inquiry,
+    createdAt: Date.now(),
+    scheduleType: "queued",
+    isRush: false,
+    artworkItems: [],
+    totalAmount: null,
+    depositAmount: null,
+    depositState: "unrecorded",
+    depositPaidAt: null,
+    balanceAmount: null,
+    balanceState: "unrecorded",
+    balancePaidAt: null,
+    statusHistory: [{ status: "inquiry", at: Date.now() }],
     updatedAt: Date.now(),
     revokedAt: null,
   };

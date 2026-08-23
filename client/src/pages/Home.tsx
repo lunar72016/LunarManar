@@ -94,7 +94,7 @@ function CommissionWorkspace() {
       } else if (!selected || !selected.id) {
         await intake.getOrCreateCodeProgress(saved);
       } else await intake.syncProgress(saved);
-      toast.success(selected ? "委託單已更新" : "已建立新的委託單", { description: submissionToAccept ? "已沿用公開填單的委託人入口。" : !selected?.id ? "已自動建立專屬驗證碼；可在「委託人入口」複製連結。" : "已先儲存在本機，系統會在背景自動同步。" });
+      toast.success(selected ? "畫約已更新" : "已建立新的畫約", { description: submissionToAccept ? "已沿用懸榜昭繪的寄墨通衢。" : !selected?.id ? "已自動建立專屬驗證碼；可在「寄墨通衢」複製連結。" : "已先儲存在本機，系統會在背景自動同步。" });
     } catch (saveError) {
       toast.error("儲存時發生問題", { description: saveError instanceof Error ? saveError.message : "請稍後再試" });
       throw saveError;
@@ -143,17 +143,17 @@ function CommissionWorkspace() {
     setDialogOpen(true);
   };
   const discardSubmission = async (submission: import("@/lib/clientPortal").ClientSubmission) => {
-    if (!window.confirm(`確定要刪除「${submission.clientName}」的未受理委託函嗎？此操作無法復原。`)) return;
+    if (!window.confirm(`確定要刪除「${submission.clientName}」的待啟墨函嗎？此操作無法復原。`)) return;
     try {
       const outcome = await intake.discardSubmission(submission.id);
-      toast.success(outcome === "offline" ? "已在本機移除委託函" : "已刪除未受理委託函", { description: outcome === "offline" ? "目前離線，系統會在恢復連線後再同步刪除。" : undefined });
+      toast.success(outcome === "offline" ? "已在本機移除墨諾函箋" : "已刪除待啟墨函", { description: outcome === "offline" ? "目前離線，系統會在恢復連線後再同步刪除。" : undefined });
     } catch (discardError) {
-      toast.error("刪除委託函時發生問題", { description: discardError instanceof Error ? discardError.message : "請稍後再試" });
+      toast.error("刪除墨諾函箋時發生問題", { description: discardError instanceof Error ? discardError.message : "請稍後再試" });
     }
   };
 
   const error = commissionsError ?? studio.error;
-  const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "委託函" : "丹青設案";
+  const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "墨諾函箋" : "丹青設案";
 
   return <TooltipProvider><Toaster richColors position="top-right" /><DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName}>
     {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} error={studio.error} onSave={studio.saveSettings} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
@@ -170,12 +170,12 @@ function CommissionWorkspace() {
     <ClientAccessDialog commission={selected} open={clientAccessOpen} onOpenChange={setClientAccessOpen} onPublish={async (input) => {
       if (!selected) throw new Error("請先選擇案件。");
       const progress = await intake.publishExistingProgress(selected, input);
-      toast.success("委託人進度入口已可使用", { description: progress.accessMode === "code" ? "已取得有效專屬連結，請傳給委託人。" : "委託人可用綁定的 Google 帳號查看。" });
+      toast.success("寄墨通衢已可使用", { description: progress.accessMode === "code" ? "已取得有效專屬連結，請傳給寄墨主。" : "寄墨主可用綁定的 Google 帳號查看。" });
       return progress;
     }} onRevoke={async () => {
       if (!selected) return;
       await intake.revokeCommissionProgress(selected.id);
-      toast.success("已撤銷此案件的委託人進度入口");
+      toast.success("已撤銷此畫約的寄墨通衢");
     }} />
   </DashboardLayout></TooltipProvider>;
 }
@@ -183,7 +183,7 @@ function CommissionWorkspace() {
 function ClientIntakeView({ submissions, loading, error, onAccept, onDiscard }: { submissions: import("@/lib/clientPortal").ClientSubmission[]; loading: boolean; error: string | null; onAccept: (submission: import("@/lib/clientPortal").ClientSubmission) => void; onDiscard: (submission: import("@/lib/clientPortal").ClientSubmission) => void }) {
   const publicFormPath = `${window.location.origin}${import.meta.env.BASE_URL}#/client`;
   const pending = getPendingClientSubmissions(submissions);
-  return <div className="mx-auto max-w-5xl space-y-5"><section className="rounded-[1.75rem] border border-[#cfd9cf] bg-[#edf5ed] p-5 sm:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-[#355b48]"><Inbox className="h-5 w-5" /><span className="text-xs font-semibold tracking-[.14em]">PUBLIC INTAKE</span></div><h2 className="mt-2 font-display text-2xl font-semibold text-[#283b31]">公開委託函</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#456153]">將下方網址提供給委託人。他們送出後會先留在此處，直到你檢視內容並建立正式畫約；不會直接進入排單。</p></div><a className="max-w-full break-all rounded-xl border border-[#b9cdbd] bg-[#fffdfa] px-3 py-2 text-sm font-medium text-[#355b48] underline decoration-[#9bb7a0] underline-offset-2" href={publicFormPath} target="_blank" rel="noreferrer noopener">{publicFormPath}</a></div></section>{error && <p className="rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error}</p>}<section><div className="mb-4 flex items-center justify-between"><div><h2 className="font-display text-xl font-semibold text-[#283b31]">待閱函件</h2><p className="mt-1 text-sm text-[#456153]">{loading ? "正在讀取公開送件…" : `目前 ${pending.length} 筆等待確認`}</p></div></div>{!loading && pending.length === 0 ? <div className="rounded-2xl border border-dashed border-[#cfd9cf] bg-[#fffdfa] p-10 text-center text-sm leading-6 text-[#6c7e70]">目前沒有等待確認的公開送件。新送件會在此處出現，不影響既有畫約與排單。</div> : <div className="grid gap-4 lg:grid-cols-2">{pending.map((submission) => <article key={submission.id} className="rounded-2xl border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_8px_20px_rgba(40,59,49,.04)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-display text-lg font-semibold text-[#283b31]">{submission.clientName}</h3><p className="mt-1 text-xs text-[#6c7e70]">{submission.contactEmail} · {new Date(submission.createdAt).toLocaleString("zh-TW")}</p></div><span className="rounded-full bg-[#edf5ed] px-2.5 py-1 text-xs font-semibold text-[#355b48]">{submission.accessMode === "google" ? "Google 帳號" : "驗證碼"}</span></div><p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#456153]">{submission.requirements}</p>{submission.referenceUrls.length > 0 && <div className="mt-4 rounded-xl bg-[#f6f7f2] p-3"><p className="text-xs font-semibold text-[#456153]">設定稿／參考網址</p>{submission.referenceUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer noopener" className="mt-1 block break-all text-xs text-[#355b48] underline">{url}</a>)}</div>}<div className="mt-5 flex gap-2 border-t border-[#e1e6df] pt-4"><Button className="flex-1 bg-[#355b48] text-[#fffdfa] hover:bg-[#294a3a]" onClick={() => onAccept(submission)}><BadgePlus className="mr-1.5 h-4 w-4" />帶入寫畫起約並受理</Button><Button variant="outline" className="border-[#d7a18e] text-[#a9573c] hover:bg-[#fff2eb]" onClick={() => onDiscard(submission)}><Trash2 className="h-4 w-4" /><span className="sr-only">刪除委託函</span></Button></div></article>)}</div>}</section></div>;
+  return <div className="mx-auto max-w-5xl space-y-5"><section className="rounded-[1.75rem] border border-[#cfd9cf] bg-[#edf5ed] p-5 sm:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-[#355b48]"><Inbox className="h-5 w-5" /><span className="text-xs font-semibold tracking-[.14em]">PUBLIC INTAKE</span></div><h2 className="mt-2 font-display text-2xl font-semibold text-[#283b31]">懸榜昭繪</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#456153]">將下方網址提供給寄墨主。墨諾函箋寄達後會先留在此處，待你啟讀並建立正式畫約；不會直接進入排單。</p></div><a className="max-w-full break-all rounded-xl border border-[#b9cdbd] bg-[#fffdfa] px-3 py-2 text-sm font-medium text-[#355b48] underline decoration-[#9bb7a0] underline-offset-2" href={publicFormPath} target="_blank" rel="noreferrer noopener">{publicFormPath}</a></div></section>{error && <p className="rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error}</p>}<section><div className="mb-4 flex items-center justify-between"><div><h2 className="font-display text-xl font-semibold text-[#283b31]">待啟墨函</h2><p className="mt-1 text-sm text-[#456153]">{loading ? "正在讀取懸榜昭繪…" : `目前 ${pending.length} 封等待啟讀`}</p></div></div>{!loading && pending.length === 0 ? <div className="rounded-2xl border border-dashed border-[#cfd9cf] bg-[#fffdfa] p-10 text-center text-sm leading-6 text-[#6c7e70]">目前沒有等待啟讀的墨諾函箋。新函寄達後會在此處出現，不影響既有畫約與排單。</div> : <div className="grid gap-4 lg:grid-cols-2">{pending.map((submission) => <article key={submission.id} className="rounded-2xl border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_8px_20px_rgba(40,59,49,.04)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-display text-lg font-semibold text-[#283b31]">{submission.clientName}</h3><p className="mt-1 text-xs text-[#6c7e70]">寄墨主 · {submission.contactEmail} · {new Date(submission.createdAt).toLocaleString("zh-TW")}</p></div><span className="rounded-full bg-[#edf5ed] px-2.5 py-1 text-xs font-semibold text-[#355b48]">{submission.accessMode === "google" ? "Google 帳號" : "驗證碼"}</span></div><p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#456153]">{submission.requirements}</p>{submission.referenceUrls.length > 0 && <div className="mt-4 rounded-xl bg-[#f6f7f2] p-3"><p className="text-xs font-semibold text-[#456153]">設定稿／參考網址</p>{submission.referenceUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer noopener" className="mt-1 block break-all text-xs text-[#355b48] underline">{url}</a>)}</div>}<div className="mt-5 flex gap-2 border-t border-[#e1e6df] pt-4"><Button className="flex-1 bg-[#355b48] text-[#fffdfa] hover:bg-[#294a3a]" onClick={() => onAccept(submission)}><BadgePlus className="mr-1.5 h-4 w-4" />帶入寫畫起約並受理</Button><Button variant="outline" className="border-[#d7a18e] text-[#a9573c] hover:bg-[#fff2eb]" onClick={() => onDiscard(submission)}><Trash2 className="h-4 w-4" /><span className="sr-only">刪除墨諾函箋</span></Button></div></article>)}</div>}</section></div>;
 }
 
 function DashboardView({ summary, commissions, pendingPayments, onView, onAdvance }: { summary: { total: number; reservations: number; sketching: number; finalizing: number; awaiting: number; awaitingAmount: number; income: number }; commissions: Commission[]; pendingPayments: PendingPaymentCommission[]; onView: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {

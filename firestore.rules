@@ -18,6 +18,11 @@ service cloud.firestore {
       allow read, write: if isArtist() && request.auth.uid == artistId;
     }
 
+    match /publicStudioSettings/{settingId} {
+      allow get: if true;
+      allow create, update, delete: if isArtist();
+    }
+
     match /clientProfiles/{userId} {
       allow create, update: if isOwner(userId);
       allow read: if isOwner(userId) || isArtist();

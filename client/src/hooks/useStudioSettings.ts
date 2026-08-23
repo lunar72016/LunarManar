@@ -26,7 +26,9 @@ export function useStudioSettings(user: User | null, isAllowed: boolean) {
     return onSnapshot(
       doc(db, "artists", user.uid, "settings", "studio"),
       (snapshot) => {
-        setSettings(normalizeStudioSettings(snapshot.exists() ? (snapshot.data() as Partial<StudioSettings>) : undefined));
+        const normalized = normalizeStudioSettings(snapshot.exists() ? (snapshot.data() as Partial<StudioSettings>) : undefined);
+        setSettings(normalized);
+        void setDoc(doc(db, "publicStudioSettings", "studio"), { combinationPrices: normalized.combinationPrices, qVariantPrices: normalized.qVariantPrices, rushMultiplierRanges: normalized.rushMultiplierRanges, licenseMultiplierRanges: normalized.licenseMultiplierRanges, updatedAt: normalized.updatedAt }, { merge: true }).catch(() => undefined);
         setLoading(false);
         setError(null);
       },
@@ -44,7 +46,10 @@ export function useStudioSettings(user: User | null, isAllowed: boolean) {
     const normalized = normalizeStudioSettings({ ...next, updatedAt: Date.now() });
     setSettings(normalized);
     try {
-      await setDoc(doc(db, "artists", user.uid, "settings", "studio"), normalized);
+      await Promise.all([
+        setDoc(doc(db, "artists", user.uid, "settings", "studio"), normalized),
+        setDoc(doc(db, "publicStudioSettings", "studio"), { combinationPrices: normalized.combinationPrices, qVariantPrices: normalized.qVariantPrices, rushMultiplierRanges: normalized.rushMultiplierRanges, licenseMultiplierRanges: normalized.licenseMultiplierRanges, updatedAt: normalized.updatedAt }),
+      ]);
     } catch (saveError) {
       setError(readableError(saveError));
       throw saveError;

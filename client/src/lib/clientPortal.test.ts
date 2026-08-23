@@ -13,12 +13,12 @@ describe("委託人入口資料工具", () => {
     expect(normalizeReferenceUrls("https://drive.google.com/a\nnot-a-link https://drive.google.com/a https://example.com/b")).toEqual(["https://drive.google.com/a", "https://example.com/b"]);
   });
 
-  it("builds a client-safe progress snapshot without pricing fields", () => {
-    const commission = { ...createBlankCommission(), id: "commission-1", orderCode: "HY-001", clientName: "月見", status: "sketching" as const, depositAmount: 3000, scheduleWeekStart: Date.UTC(2026, 7, 3) };
+  it("builds a client-safe progress snapshot with approved drawing and payment fields only", () => {
+    const commission = { ...createBlankCommission(), id: "commission-1", orderCode: "HY-001", clientName: "月見", status: "sketching" as const, depositAmount: 3000, totalAmount: 6000, scheduleWeekStart: Date.UTC(2026, 7, 3), artworkItems: [{ id: "item-1", characterCount: 2, artScope: "半身" as const, finishLevel: "一般" as const, qSize: null, note: "內部備註不公開" }], requirements: "私密設定網址" };
     const progress = buildClientProgress(commission, { id: "portal-1", accessMode: "code", clientUid: null, accessCode: "HY-0000000000000000-0000000000000000-0000000000000000", ownerUid: "artist" });
 
-    expect(progress).toMatchObject({ commissionId: "commission-1", statusLabel: "草稿製作", scheduleWeekLabel: "8月第一週" });
-    expect(progress).not.toHaveProperty("depositAmount");
+    expect(progress).toMatchObject({ commissionId: "commission-1", statusLabel: "草稿製作", scheduleWeekLabel: "8月第一週", depositAmount: 3000, totalAmount: 6000, artworkItems: [{ id: "item-1", summary: "2 人 · 半身 · 一般" }] });
+    expect(progress).not.toHaveProperty("requirements");
     expect(getClientProgressPath(progress.accessCode!)).toContain("/#/client/progress/HY-");
   });
 
