@@ -6,8 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { SafariGoogleSignInHint } from "@/components/SafariGoogleSignInHint";
+import { PublicSubmissionForm, PublicSubmissionFormState } from "@/components/PublicSubmissionForm";
+import { ClientProgressPanel } from "@/components/ClientProgressPanel";
 import { ClientProgress, ClientSubmission, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
-import { ArtworkItem, LicenseOption, PaymentState, ScheduleType, applyAutomaticPricing, contactChannels, createArtworkItem, createBlankCommission, formatCurrency, formatDisplayDate, getAvailableFinishes, getAvailableQSizes, getAvailableScopes, statusMeta } from "@/lib/commission";
+import { ArtworkItem, LicenseOption, PaymentState, PrivacyMode, RushLevel, ScheduleType, applyAutomaticPricing, contactChannels, createArtworkItem, createBlankCommission, formatCurrency, formatDisplayDate, getAvailableFinishes, getAvailableQSizes, getAvailableScopes, statusMeta, weekLabel } from "@/lib/commission";
 import { describeAnonymousAuthError, describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
 import { StudioSettings, defaultStudioSettings, normalizeStudioSettings } from "@/lib/studioSettings";
 import { AtSign, CheckCircle2, ChevronDown, ClipboardList, Eye, Facebook, KeyRound, LoaderCircle, LogIn, MoonStar, Palette, Plus, Send, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
@@ -15,9 +17,10 @@ import { collection, doc, getDoc, onSnapshot, query, setDoc, where, writeBatch }
 import { useEffect, useMemo, useState } from "react";
 
 type PortalTab = "submit" | "progress";
+export type PublicScheduleChoice = "queued" | "reservation" | "rush";
 
-const emptyForm = {
-  clientName: "", contactEmail: "", contactChannel: "Facebook", contactHandle: "", characterSettingNote: "", poseNote: "", costumeDesignNote: "", accessoryNote: "", requirements: "", referenceUrls: "", deliveryNote: "", scheduleType: "queued" as ScheduleType, artworkItems: [] as ArtworkItem[], isRush: false, licenses: [] as LicenseOption[], dueDate: "",
+const emptyForm: PublicSubmissionFormState = {
+  clientName: "", contactEmail: "", contactChannel: "Facebook", contactHandle: "", referenceUrls: "", scheduleChoice: "queued" as PublicScheduleChoice, reservationDate: "", artworkItems: [] as ArtworkItem[], licenses: [] as LicenseOption[], rushDueDate: "", privacyMode: "open" as PrivacyMode, privacyUntil: "", characterSettingNote: "", poseNote: "", costumeDesignNote: "", accessoryNote: "", requirements: "", deliveryNote: "",
 };
 
 const socialLinks = [
@@ -29,10 +32,29 @@ const socialLinks = [
 
 function makePublicArtworkItem(settings: StudioSettings): ArtworkItem | null {
   const scope = getAvailableScopes(settings)[0] as ArtworkItem["artScope"] | undefined;
-  if (!scope) return null;
+  if (!scope) return createArtworkItem();
   if (scope === "Q版") { const qSize = getAvailableQSizes(settings)[0]; return qSize ? createArtworkItem({ artScope: scope, qSize }) : null; }
   const finish = getAvailableFinishes(settings, scope)[0];
   return finish ? createArtworkItem({ artScope: scope, finishLevel: finish, qSize: null }) : null;
+}
+
+function toPortalDateTimestamp(value: string) {
+  return value ? new Date(`${value}T12:00:00`).getTime() : null;
+}
+
+function getPublicRushLevel(dueDate: number | null): RushLevel {
+  if (!dueDate) return "一般加急";
+  const days = Math.round((dueDate - Date.now()) / 86_400_000);
+  if (days <= 0) return "極限加急";
+  if (days <= 7) return "高度加急";
+  if (days <= 30) return "中度加急";
+  return "一般加急";
+}
+
+function hasPublishedStudioPrices(settings: StudioSettings) {
+  const combinationHasPrice = Object.values(settings.combinationPrices).some((scopePrices) => Object.values(scopePrices).some((price) => Number(price) > 0));
+  const qVariantHasPrice = Object.values(settings.qVariantPrices).some((price) => Number(price) > 0);
+  return combinationHasPrice || qVariantHasPrice;
 }
 
 function readableFirebaseError(error: unknown) {
@@ -60,6 +82,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
   const [form, setForm] = useState(emptyForm);
   const [settings, setSettings] = useState<StudioSettings>(defaultStudioSettings());
   const [pricingReady, setPricingReady] = useState(false);
+  const [lastQueuedWeek, setLastQueuedWeek] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +95,11 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
   useEffect(() => {
     if (!firestoreDb) return;
     return onSnapshot(doc(firestoreDb, "publicStudioSettings", "studio"), (snapshot) => {
-      setSettings(normalizeStudioSettings(snapshot.exists() ? snapshot.data() as Partial<StudioSettings> : undefined));
-      setPricingReady(snapshot.exists());
+      const data = snapshot.exists() ? snapshot.data() as Partial<StudioSettings> & { lastQueuedWeek?: number | null } : undefined;
+      const normalized = normalizeStudioSettings(data);
+      setSettings(normalized);
+      setLastQueuedWeek(data?.lastQueuedWeek ?? null);
+      setPricingReady(snapshot.exists() && hasPublishedStudioPrices(normalized));
     }, () => setPricingReady(false));
   }, []);
 
@@ -120,8 +146,9 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
   const update = <K extends keyof typeof emptyForm>(key: K, value: typeof emptyForm[K]) => setForm((current) => ({ ...current, [key]: value }));
   const preview = useMemo(() => {
     const rawBase = form.artworkItems.reduce((sum, item) => sum + (item.artScope === "Q版" ? settings.qVariantPrices[item.qSize ?? "2頭身"] ?? 0 : settings.combinationPrices[item.artScope]?.[item.finishLevel] ?? 0) * Math.max(1, item.characterCount), 0);
-    return applyAutomaticPricing(settings, { ...createBlankCommission(), artworkItems: form.artworkItems, isRush: form.isRush, rushLevel: "一般加急", licenses: form.licenses, estimatedPrice: rawBase });
-  }, [form.artworkItems, form.isRush, form.licenses, settings]);
+    const rushDueDate = toPortalDateTimestamp(form.rushDueDate);
+    return applyAutomaticPricing(settings, { ...createBlankCommission(), artworkItems: form.artworkItems, isRush: form.scheduleChoice === "rush", rushLevel: getPublicRushLevel(rushDueDate), licenses: form.licenses, estimatedPrice: rawBase });
+  }, [form.artworkItems, form.licenses, form.rushDueDate, form.scheduleChoice, settings]);
   const useGoogle = async () => {
     setError(null);
     try { await signInWithGoogle(); } catch (nextError) { setError(readableFirebaseError(nextError)); }
@@ -130,6 +157,10 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
   const submit = async () => {
     if (!form.clientName.trim() || !form.contactEmail.trim() || !form.artworkItems.length) {
       setError("請填寫寄墨主姓名、電子郵件與至少一項作畫項目後再送出。");
+      return;
+    }
+    if (form.scheduleChoice === "rush" && !form.rushDueDate) {
+      setError("選擇加急時，請填寫加急交稿日以判定對應倍率。");
       return;
     }
     if (!firestoreDb) { setError("Firebase 尚未設定完成。"); return; }
@@ -159,15 +190,22 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
         clientUid: currentUser.uid,
         accessCode,
         accessMode: access.accessMode,
-        ...form,
+        clientName: form.clientName.trim(),
+        contactEmail: form.contactEmail.trim(),
+        contactChannel: form.contactChannel,
+        contactHandle: form.contactHandle.trim(),
         referenceUrls: normalizeReferenceUrls(form.referenceUrls),
         state: "submitted",
-        scheduleType: form.scheduleType,
+        scheduleType: form.scheduleChoice === "reservation" ? "reservation" : "queued",
+        reservationDate: form.scheduleChoice === "reservation" ? toPortalDateTimestamp(form.reservationDate) : null,
         artworkItems: form.artworkItems,
-        isRush: form.isRush,
+        isRush: form.scheduleChoice === "rush",
+        rushLevel: form.scheduleChoice === "rush" ? getPublicRushLevel(toPortalDateTimestamp(form.rushDueDate)) : null,
         licenses: form.licenses,
-        deliveryPreference: form.dueDate ? "date" : "unspecified",
-        dueDate: form.dueDate ? new Date(`${form.dueDate}T12:00:00`).getTime() : null,
+        privacyMode: form.privacyMode,
+        privacyUntil: form.privacyMode === "until" ? toPortalDateTimestamp(form.privacyUntil) : null,
+        deliveryPreference: form.scheduleChoice === "rush" ? "date" : "unspecified",
+        dueDate: form.scheduleChoice === "rush" ? toPortalDateTimestamp(form.rushDueDate) : null,
         estimatedPrice: preview.rawBasePrice,
         createdAt: now,
         updatedAt: now,
@@ -219,16 +257,17 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
         </header>
         <div className="mt-5 flex rounded-2xl border border-[#cfd9cf] bg-[#fffdfa] p-1.5">
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<ClipboardList />}>懸榜昭繪</TabButton>
-          <TabButton active={tab === "progress"} onClick={() => setTab("progress")} icon={<Sparkles />}>查看進度</TabButton>
+          <TabButton active={tab === "progress"} onClick={() => setTab("progress")} icon={<Sparkles />}>檢視遞臻</TabButton>
         </div>
         {(error || googleSignInIssue) && <div className="mt-4 space-y-3"><p className="rounded-xl border border-[#e6c6b8] bg-[#fff2eb] px-4 py-3 text-sm text-[#a9573c]">{error || googleSignInIssue}</p><SafariGoogleSignInHint visible={Boolean(googleSignInIssue)} /></div>}
         {tab === "submit" ? (
-          <SubmissionForm
+          <PublicSubmissionForm
             form={form}
             settings={settings}
             pricingReady={pricingReady}
             previewAmount={preview.finalPrice ?? 0}
             previewMultiplier={preview.rushMultiplier ?? 1}
+            queueWeekLabel={lastQueuedWeek ? weekLabel(lastQueuedWeek) : null}
             update={update}
             onSubmit={submit}
             submitting={submitting}
@@ -240,7 +279,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
             resultCode={resultCode}
           />
         ) : (
-          <ProgressPanel
+          <ClientProgressPanel
             signedInWithGoogle={signedInWithGoogle}
             accountEmail={user?.email ?? "Google 帳號"}
             code={code}
@@ -259,6 +298,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
   );
 }
 
+/* Legacy inline form retained in source history while PublicSubmissionForm owns the active public intake UI.
 function SubmissionForm({ form, settings, pricingReady, previewAmount, previewMultiplier, update, onSubmit, submitting, loading, signedInWithGoogle, accountEmail, onGoogle, onSignOut, resultCode }: {
   form: typeof emptyForm; settings: StudioSettings; pricingReady: boolean; previewAmount: number; previewMultiplier: number; update: <K extends keyof typeof emptyForm>(key: K, value: typeof emptyForm[K]) => void; onSubmit: () => Promise<void>; submitting: boolean; loading: boolean; signedInWithGoogle: boolean; accountEmail: string; onGoogle: () => Promise<void>; onSignOut: () => void; resultCode: string | null;
 }) {
@@ -283,6 +323,7 @@ function PublicArtworkItem({ item, index, settings, onChange, onRemove, removabl
   return <article className="rounded-2xl border border-[#d8ded5] bg-[#fffdfa] p-4"><div className="mb-3 flex items-center justify-between"><p className="font-medium text-[#355b48]">作畫項目 {index + 1}</p>{removable && <Button type="button" size="sm" variant="ghost" className="text-[#a9573c]" onClick={onRemove}><Trash2 className="mr-1 h-3.5 w-3.5" />移除</Button>}</div><div className="grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-3"><Field label="人物"><Input type="number" min="1" value={item.characterCount} onChange={(event) => onChange({ characterCount: Math.max(1, Number(event.target.value) || 1) })} /></Field><Field label="繪製範圍"><Select value={item.artScope} onValueChange={(value) => onChange({ artScope: value as ArtworkItem["artScope"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{scopes.map((scope) => <SelectItem key={scope} value={scope}>{scope}</SelectItem>)}</SelectContent></Select></Field>{item.artScope === "Q版" ? <Field label="Q版規格"><Select value={item.qSize ?? qSizes[0]} onValueChange={(value) => onChange({ qSize: value as ArtworkItem["qSize"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{qSizes.map((size) => <SelectItem key={size} value={size}>{size}</SelectItem>)}</SelectContent></Select></Field> : <Field label="精緻度"><Select value={item.finishLevel} onValueChange={(value) => onChange({ finishLevel: value as ArtworkItem["finishLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{finishes.map((finish) => <SelectItem key={finish} value={finish}>{finish}</SelectItem>)}</SelectContent></Select></Field>}</div><Field label="項目備註" className="mt-3"><Input value={item.note} onChange={(event) => onChange({ note: event.target.value })} /></Field></article>;
 }
 
+*/
 function ProgressPanel({ signedInWithGoogle, accountEmail, code, setCode, codeProgress, myProgress, mySubmissions, searching, onLookup, onGoogle, onSignOut }: { signedInWithGoogle: boolean; accountEmail: string; code: string; setCode: (value: string) => void; codeProgress: ClientProgress | null; myProgress: ClientProgress[]; mySubmissions: ClientSubmission[]; searching: boolean; onLookup: () => Promise<void>; onGoogle: () => Promise<void>; onSignOut: () => void }) {
   const progress = codeProgress ? [codeProgress] : myProgress;
   return <section className="mt-5 rounded-[2rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_14px_32px_rgba(40,59,49,.06)] sm:p-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="font-display text-2xl">我的畫約進度</h2><p className="mt-1 text-sm leading-6 text-[#456153]">此頁顯示繪師公開給寄墨主的畫約、款項與作畫進度。</p></div>{signedInWithGoogle ? <AccountBadge email={accountEmail} onSignOut={onSignOut} /> : <Button variant="outline" className="border-[#b9cdbd] text-[#355b48]" onClick={() => void onGoogle()}><LogIn className="mr-1.5 h-4 w-4" />使用 Google 帳號</Button>}</div><div className="mt-6 rounded-2xl bg-[#edf5ed] p-4"><Label className="text-[#355b48]">沒有 Google 帳號？輸入專屬驗證碼</Label><div className="mt-2 flex flex-col gap-2 sm:flex-row"><Input value={code} onChange={(event) => setCode(event.target.value)} placeholder="HY-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx" /><Button variant="outline" className="border-[#b9cdbd] text-[#355b48]" disabled={searching} onClick={() => void onLookup()}><KeyRound className="mr-1.5 h-4 w-4" />{searching ? "查詢中…" : "查看"}</Button></div></div><div className="mt-6 space-y-3">{progress.map((item) => <ProgressCard key={item.id} progress={item} />)}{mySubmissions.length > 0 && <div className="rounded-2xl border border-dashed border-[#cfd9cf] p-4"><p className="font-medium">已寄出的墨諾函箋</p><div className="mt-2 space-y-1 text-sm text-[#456153]">{mySubmissions.map((item) => <p key={item.id}>· {item.state === "submitted" ? "等待繪師啟函" : item.state === "accepted" ? "已轉為畫約" : "未受理"} · {new Date(item.createdAt).toLocaleDateString("zh-TW")}</p>)}</div></div>}{progress.length === 0 && <div className="rounded-2xl border border-dashed border-[#cfd9cf] p-8 text-center text-sm leading-6 text-[#6c7e70]">尚未找到已公開的畫約。若您剛寄出墨諾函箋，請等候繪師確認；也可使用繪師提供的專屬驗證碼查看。</div>}</div></section>;

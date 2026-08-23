@@ -29,9 +29,13 @@ export type ClientSubmission = {
   referenceUrls: string[];
   deliveryNote: string;
   scheduleType?: ScheduleType;
+  reservationDate?: number | null;
   artworkItems?: ArtworkItem[];
   isRush?: boolean;
+  rushLevel?: import("@/lib/commission").RushLevel | null;
   licenses?: LicenseOption[];
+  privacyMode?: import("@/lib/commission").PrivacyMode;
+  privacyUntil?: number | null;
   deliveryPreference?: "unspecified" | "date";
   dueDate?: number | null;
   estimatedPrice?: number | null;

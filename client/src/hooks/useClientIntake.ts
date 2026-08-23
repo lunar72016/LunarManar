@@ -1,5 +1,5 @@
 import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, getActiveCodeProgress, hydrateClientSubmission, isVerifiedCodeProgress } from "@/lib/clientPortal";
-import { Commission, createBlankCommission } from "@/lib/commission";
+import { Commission, createBlankCommission, startOfWeek } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
 import { collection, deleteDoc, doc, getDocFromServer, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where } from "firebase/firestore";
@@ -18,11 +18,15 @@ export function commissionFromClientSubmission(submission: ClientSubmission): Co
     accessoryNote: submission.accessoryNote,
     requirements: [submission.requirements, submission.deliveryNote && `期限／補充：${submission.deliveryNote}`, submission.referenceUrls.length ? `設定稿／參考網址：\n${submission.referenceUrls.join("\n")}` : ""].filter(Boolean).join("\n\n"),
     scheduleType: submission.scheduleType ?? "queued",
+    scheduleWeekStart: submission.scheduleType === "reservation" && submission.reservationDate ? startOfWeek(submission.reservationDate) : draft.scheduleWeekStart,
     artworkItems: submission.artworkItems ?? [],
     isRush: submission.isRush ?? false,
+    rushLevel: submission.rushLevel ?? draft.rushLevel,
     licenses: submission.licenses ?? [],
     deliveryPreference: submission.deliveryPreference ?? "unspecified",
     dueDate: submission.dueDate ?? null,
+    privacyMode: submission.privacyMode ?? draft.privacyMode,
+    privacyUntil: submission.privacyUntil ?? null,
     rushRequestedAt: submission.isRush ? submission.createdAt : null,
     estimatedPrice: submission.estimatedPrice ?? null,
     sourceNote: `委託人公開填單 · ${submission.id}`,
@@ -92,13 +96,20 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     if (!db || !user) throw new Error("目前無法連接資料庫");
     const existingSnapshot = await getDocs(query(collection(db, "clientProgress"), where("commissionId", "==", commission.id)));
     const existing = getActiveCodeProgress(existingSnapshot.docs.map((item) => ({ ...item.data(), id: item.id } as ClientProgress)), commission.id);
-    if (existing) return existing;
+    if (existing) {
+      const refreshed = buildClientProgress(commission, existing);
+      await setDoc(doc(db, "clientProgress", existing.id), refreshed, { merge: true });
+      const confirmed = await getDocFromServer(doc(db, "clientProgress", existing.id));
+      const confirmedProgress = confirmed.exists() ? { ...confirmed.data(), id: confirmed.id } as ClientProgress : null;
+      if (!confirmedProgress || !isVerifiedCodeProgress(confirmedProgress, existing.accessCode ?? "")) throw new Error("對契符節進度文件未能完成伺服器同步。請確認 Firestore 規則已發布後再試。");
+      return confirmedProgress;
+    }
     const accessCode = createPortalAccessCode();
     const progress = buildClientProgress(commission, { id: accessCode, accessMode: "code", clientUid: null, accessCode, ownerUid: user.uid });
     await setDoc(doc(db, "clientProgress", progress.id), progress);
     const confirmed = await getDocFromServer(doc(db, "clientProgress", progress.id));
     const confirmedProgress = confirmed.exists() ? { ...confirmed.data(), id: confirmed.id } as ClientProgress : null;
-    if (!confirmedProgress || !isVerifiedCodeProgress(confirmedProgress, accessCode)) throw new Error("驗證碼進度文件未能完成伺服器同步。請確認 Firestore 規則已發布並重新建立入口。");
+    if (!confirmedProgress || !isVerifiedCodeProgress(confirmedProgress, accessCode)) throw new Error("對契符節進度文件未能完成伺服器同步。請確認 Firestore 規則已發布並重新建立入口。");
     return confirmedProgress;
   }, [user?.uid]);
 
