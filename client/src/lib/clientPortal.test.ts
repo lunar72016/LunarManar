@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -28,6 +28,13 @@ describe("委託人入口資料工具", () => {
 
     expect(progress).toMatchObject({ id: code, commissionId: "", status: "inquiry", statusLabel: "等待繪師確認", scheduleWeekLabel: "繪師確認後提供" });
     expect(progress).not.toHaveProperty("requirements");
+  });
+
+  it("shows only the due date for a rush commission in the public summary", () => {
+    expect(getPublicScheduleDetails({ isRush: true, scheduleWeekLabel: "9月第二週", dueDateLabel: "2026年08月31日" }))
+      .toEqual([{ label: "交稿期限", value: "2026年08月31日" }]);
+    expect(getPublicScheduleDetails({ isRush: false, scheduleWeekLabel: "9月第二週", dueDateLabel: null }))
+      .toEqual([{ label: "排程週次", value: "9月第二週" }]);
   });
 
   it("accepts only an active server record that exactly matches a hand-created code", () => {

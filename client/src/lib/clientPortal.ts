@@ -87,6 +87,17 @@ const statusNextStep: Record<CommissionStatus, string> = {
   archived: "此案件目前已封存；如有需要請直接聯繫繪師。",
 };
 
+export type PublicScheduleDetail = { label: "排程週次" | "交稿期限"; value: string };
+
+/** 急案不參與一般排程，寄墨主端只顯示其承諾的交稿期限。 */
+export function getPublicScheduleDetails(progress: Pick<ClientProgress, "isRush" | "scheduleWeekLabel" | "dueDateLabel">): PublicScheduleDetail[] {
+  if (progress.isRush) return progress.dueDateLabel ? [{ label: "交稿期限", value: progress.dueDateLabel }] : [];
+  return [
+    { label: "排程週次", value: progress.scheduleWeekLabel },
+    ...(progress.dueDateLabel ? [{ label: "交稿期限" as const, value: progress.dueDateLabel }] : []),
+  ];
+}
+
 /** 產生不可猜測的 256-bit 專屬驗證碼；此碼同時作為一次性進度連結的路徑識別。 */
 export function createPortalAccessCode() {
   const bytes = new Uint8Array(24);

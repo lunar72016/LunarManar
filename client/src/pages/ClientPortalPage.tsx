@@ -250,7 +250,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     <main className="min-h-screen bg-[#f6f5ef] px-4 py-6 text-[#283b31] sm:px-8 sm:py-10">
       <section className="mx-auto max-w-3xl">
         <header className="rounded-[2rem] bg-[#283b31] px-6 py-8 text-[#fffdfa] shadow-[0_18px_48px_rgba(40,59,49,.16)] sm:px-10">
-          <div className="flex items-center gap-3 text-[#dbe8dc]"><MoonStar className="h-6 w-6" /><span className="text-xs font-semibold tracking-[.18em]">繪月錄 · 寄墨主入口</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-[#dbe8dc]"><div className="flex items-center gap-3"><MoonStar className="h-6 w-6" /><span className="text-xs font-semibold tracking-[.18em]">繪月錄 · 寄墨主入口</span></div><Button type="button" variant="outline" size="sm" className="border-[#a9c1ad]/70 bg-[#355b48]/65 text-[#fffdfa] hover:bg-[#456e57] hover:text-[#fffdfa]" onClick={() => { window.location.hash = "/"; }}>重臨畫案</Button></div>
           <h1 className="mt-5 font-display text-3xl sm:text-4xl">把委託內容，交給月光妥善收錄。</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-[#d8e4da]">您可先填寫墨諾函箋，並隨時以 Google 帳號或專屬驗證碼查看自己的畫約進度。</p>
           <div className="mt-6 flex flex-wrap gap-2">{socialLinks.map(({ label, href, icon: Icon }) => <a key={label} href={href} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1.5 rounded-full border border-[#a9c1ad]/45 bg-[#355b48]/65 px-3 py-1.5 text-xs font-medium text-[#fffdfa] transition hover:bg-[#456e57]"><Icon className="h-3.5 w-3.5" />{label}</a>)}</div>
