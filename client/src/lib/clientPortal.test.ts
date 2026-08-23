@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, formatPortalDateInput, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -11,6 +11,11 @@ describe("委託人入口資料工具", () => {
 
   it("keeps only valid and unique cloud reference URLs", () => {
     expect(normalizeReferenceUrls("https://drive.google.com/a\nnot-a-link https://drive.google.com/a https://example.com/b")).toEqual(["https://drive.google.com/a", "https://example.com/b"]);
+  });
+
+  it("formats public date fields with a neutral yyyy/mm/dd placeholder", () => {
+    expect(formatPortalDateInput("")).toBe("yyyy/mm/dd");
+    expect(formatPortalDateInput("2026-08-24")).toBe("2026/08/24");
   });
 
   it("builds a client-safe progress snapshot with approved drawing and payment fields only", () => {

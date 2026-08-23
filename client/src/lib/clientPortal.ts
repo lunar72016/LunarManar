@@ -188,6 +188,11 @@ export function getClientProgressPath(code: string) {
   return `/#/client/progress/${encodeURIComponent(code.trim().toUpperCase())}`;
 }
 
+/** 公開表單的日期欄位統一使用易讀的年月日斜線提示，避免瀏覽器原生提示混雜語系。 */
+export function formatPortalDateInput(value: string) {
+  return value ? value.replaceAll("-", "/") : "yyyy/mm/dd";
+}
+
 /** 驗證已從伺服器讀回的公開進度是否可由該專屬驗證碼安全存取。 */
 export function isVerifiedCodeProgress(progress: ClientProgress | null | undefined, code: string) {
   const normalized = code.trim().toUpperCase();

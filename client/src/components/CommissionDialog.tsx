@@ -1,4 +1,3 @@
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +18,6 @@ type CommissionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (commission: Commission) => Promise<void>;
-  onDelete?: (commission: Commission) => Promise<void>;
   settings: StudioSettings;
   defaultScheduleWeekStart: number;
   lastQueuedWeek: number | null;
@@ -41,11 +39,10 @@ function chineseOrdinal(value: number) {
 function numberOrNull(value: string) { const parsed = Number(value); return value.trim() && Number.isFinite(parsed) ? parsed : null; }
 function toInputDate(value: number | null) { return !value ? "" : new Date(value - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
 
-export function CommissionDialog({ commission, open, onOpenChange, onSave, onDelete, settings, defaultScheduleWeekStart, lastQueuedWeek }: CommissionDialogProps) {
+export function CommissionDialog({ commission, open, onOpenChange, onSave, settings, defaultScheduleWeekStart, lastQueuedWeek }: CommissionDialogProps) {
   const [draft, setDraft] = useState<Commission>(createBlankCommission());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const availableScopes = useMemo(() => getAvailableScopes(settings), [settings]);
   const weekOptions = useMemo(() => {
     const selected = commission?.scheduleWeekStart ?? defaultScheduleWeekStart;
@@ -121,7 +118,6 @@ export function CommissionDialog({ commission, open, onOpenChange, onSave, onDel
       onOpenChange(false);
     } catch (error) { setSaveError(error instanceof Error ? error.message : "儲存時發生問題，請稍後重試。"); } finally { setSaving(false); }
   };
-  const remove = async () => { if (!commission || !onDelete) return; setDeleting(true); try { await onDelete(commission); onOpenChange(false); } finally { setDeleting(false); } };
   const multiplierRange = getSelectedMultiplierRange(settings, draft);
   const automaticRushLevel = draft.isRush ? draft.rushLevel : autoDetectRushLevel(draft.dueDate, lastQueuedWeek, draft.rushRequestedAt ?? Date.now());
   const isReservation = draft.scheduleType === "reservation";
@@ -149,7 +145,7 @@ export function CommissionDialog({ commission, open, onOpenChange, onSave, onDel
       </section>
       <section className="space-y-4"><SectionTitle icon={<CircleDollarSign className="h-4 w-4" />} title="價格與付款" /><div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-4"><MoneyField label="底價" value={draft.basePriceMin} /><MoneyField label="訂金" value={draft.depositAmount} /><EditableMoneyField label="估價" value={draft.estimatedPrice} onChange={(value) => update("estimatedPrice", value, true)} /><MoneyField label="報價" value={draft.finalPrice} /><MoneyField label="尾款" value={draft.balanceAmount} /><EditableMoneyField label="追加款" value={draft.additionalAmount} onChange={updateAdditionalAmount} /><MoneyField label="追加報價" value={draft.additionalQuoteAmount} /><MoneyField label="總額" value={draft.totalAmount} emphasize /></div><div className="grid items-start gap-4"><PaymentRecord title="訂金收款" state={draft.depositState} paidAt={draft.depositPaidAt} onStateChange={(value) => updatePaymentState("deposit", value)} onDateChange={(value) => update("depositPaidAt", value)} /><PaymentRecord title="尾款收款" state={draft.balanceState} paidAt={draft.balancePaidAt} onStateChange={(value) => updatePaymentState("balance", value)} onDateChange={(value) => update("balancePaidAt", value)} /></div><div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"><Field label="收款方式"><Input value={draft.paymentMethod} onChange={(event) => update("paymentMethod", event.target.value)} placeholder="例如：郵局轉帳" /></Field><Field label="收款備註"><Textarea className="min-h-10" value={draft.paymentNote} onChange={(event) => update("paymentNote", event.target.value)} /></Field></div></section>
       <section className="space-y-4"><SectionTitle icon={<CalendarClock className="h-4 w-4" />} title="草稿與工作進度" /><div className="grid items-start gap-4 md:grid-cols-2"><Field label="目前階段"><Select value={draft.status} onValueChange={(value) => update("status", value as CommissionStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{commissionStatuses.filter((status) => status !== "archived").map((status) => <SelectItem value={status} key={status}>{statusMeta[status].label}</SelectItem>)}</SelectContent></Select></Field><Field label="預計工期（工作天）"><Input type="number" min="1" step="1" value={draft.estimatedWorkdays ?? ""} onChange={(event) => update("estimatedWorkdays", numberOrNull(event.target.value))} placeholder="例如：5" /><span className="text-xs font-normal text-[#456153]">以週一至週五計算，不含週六、日；供工作節奏估算使用。</span></Field><Field label="草稿提供時間"><CalendarDateTimePicker value={draft.sketchSentAt} onDateTimeChange={(sketchSentAt) => update("sketchSentAt", sketchSentAt)} /></Field><Field label="草稿確認時間"><CalendarDateTimePicker value={draft.sketchConfirmedAt} onDateTimeChange={(sketchConfirmedAt) => update("sketchConfirmedAt", sketchConfirmedAt)} /></Field></div><Field label="草稿修改／確認備註"><Textarea value={draft.revisionNote} onChange={(event) => update("revisionNote", event.target.value)} /></Field></section>
-    </div><div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-[#d8ded5] bg-[#fffdfa]/95 px-4 py-4 backdrop-blur sm:px-8"><div>{commission && onDelete && <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" className="border-[#bc694c] text-[#a9573c] hover:bg-[#fff0e9]" disabled={saving || deleting}><Trash2 className="mr-1.5 h-4 w-4" />刪除此排單</Button></AlertDialogTrigger><AlertDialogContent className="border-[#d8ded5] bg-[#fffdfa]"><AlertDialogHeader><AlertDialogTitle className="font-display text-xl text-[#283b31]">確定刪除「{commission.clientName}」的排單？</AlertDialogTitle><AlertDialogDescription className="leading-6 text-[#456153]">此動作會從工作台與 Firestore 移除這筆資料，無法復原。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={deleting}>保留排單</AlertDialogCancel><AlertDialogAction onClick={() => void remove()} disabled={deleting} className="bg-[#a9573c] text-white hover:bg-[#8e4932]">{deleting ? "刪除中…" : "確定刪除"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}</div><div className="flex flex-wrap items-center gap-3">{saveError && <p className="max-w-xs text-xs leading-5 text-[#a9573c]">{saveError}</p>}<Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>取消</Button><Button className="bg-[#355b48] text-[#fffdfa] hover:bg-[#294a3a]" onClick={submit} disabled={saving || deleting || !draft.clientName.trim()}>{saving ? "儲存中…" : "儲存畫約"}</Button></div></div>
+    </div><div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 border-t border-[#d8ded5] bg-[#fffdfa]/95 px-4 py-4 backdrop-blur sm:px-8">{saveError && <p className="max-w-xs text-xs leading-5 text-[#a9573c]">{saveError}</p>}<Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>取消</Button><Button className="bg-[#355b48] text-[#fffdfa] hover:bg-[#294a3a]" onClick={submit} disabled={saving || !draft.clientName.trim()}>{saving ? "儲存中…" : "儲存畫約"}</Button></div>
   </DialogContent></Dialog>;
 }
 
