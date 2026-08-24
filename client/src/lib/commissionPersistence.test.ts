@@ -15,6 +15,24 @@ describe("commission persistence", () => {
     await expect(persistFirestoreWrite(Promise.reject(new Error("permission-denied")), vi.fn(), 50)).rejects.toThrow("permission-denied");
   });
 
+  it("keeps a slow write queued for offline-first work and reports a later sync failure", async () => {
+    vi.useFakeTimers();
+    let rejectWrite: (error: Error) => void = () => undefined;
+    const slowWrite = new Promise<void>((_, reject) => { rejectWrite = reject; });
+    const failure = vi.fn();
+
+    try {
+      const outcome = persistFirestoreWrite(slowWrite, failure, 50);
+      await vi.advanceTimersByTimeAsync(50);
+      await expect(outcome).resolves.toBe("queued");
+      rejectWrite(new Error("network-unavailable"));
+      await Promise.resolve();
+      expect(failure).toHaveBeenCalledWith(expect.objectContaining({ message: "network-unavailable" }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rolls an optimistic old-commission update back and propagates a rejected write", async () => {
     const previous = { id: "old", clientName: "原姓名" };
     const rollback = vi.fn();

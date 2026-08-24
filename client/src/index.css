@@ -42,41 +42,49 @@
 
 :root {
   --radius: 0.78rem;
-  --background: #fffdfa;
-  --foreground: #283b31;
-  --card: #fffdfa;
-  --card-foreground: #283b31;
-  --popover: #fffdfa;
-  --popover-foreground: #283b31;
-  --primary: #355b48;
-  --primary-foreground: #fffdfa;
-  --secondary: #dce9dc;
-  --secondary-foreground: #283b31;
-  --muted: #edf2ed;
-  --muted-foreground: #456153;
-  --accent: #c9d9cb;
-  --accent-foreground: #283b31;
-  --destructive: #a9573c;
-  --destructive-foreground: #fffdfa;
-  --border: #cfd9cf;
-  --input: #cfd9cf;
-  --ring: #6c9575;
-  --sidebar: #f7f4ee;
-  --sidebar-foreground: #283b31;
-  --sidebar-primary: #355b48;
-  --sidebar-primary-foreground: #fffdfa;
-  --sidebar-accent: #dce9dc;
-  --sidebar-accent-foreground: #283b31;
-  --sidebar-border: #cfd9cf;
-  --sidebar-ring: #6c9575;
+  --hui-cloud: #f8f9fa;
+  --hui-snow: #edf1ef;
+  --hui-pine: #1f382c;
+  --hui-gold: #d4a359;
+  --hui-gold-hover: #bd8a45;
+  --hui-graphite: #4a5568;
+  --hui-border-strong: #d7e0db;
+  --hui-danger: #b85c4a;
+  --background: var(--hui-cloud);
+  --foreground: var(--hui-pine);
+  --card: var(--hui-cloud);
+  --card-foreground: var(--hui-pine);
+  --popover: var(--hui-cloud);
+  --popover-foreground: var(--hui-pine);
+  --primary: var(--hui-gold);
+  --primary-foreground: var(--hui-pine);
+  --secondary: var(--hui-snow);
+  --secondary-foreground: var(--hui-pine);
+  --muted: var(--hui-snow);
+  --muted-foreground: var(--hui-graphite);
+  --accent: #f4e6c6;
+  --accent-foreground: var(--hui-pine);
+  --destructive: var(--hui-danger);
+  --destructive-foreground: var(--hui-cloud);
+  --border: var(--hui-border-strong);
+  --input: var(--hui-border-strong);
+  --ring: var(--hui-gold);
+  --sidebar: var(--hui-snow);
+  --sidebar-foreground: var(--hui-pine);
+  --sidebar-primary: var(--hui-gold);
+  --sidebar-primary-foreground: var(--hui-pine);
+  --sidebar-accent: #e2eae5;
+  --sidebar-accent-foreground: var(--hui-pine);
+  --sidebar-border: var(--hui-border-strong);
+  --sidebar-ring: var(--hui-gold);
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  html { background: #fffdfa; overflow-y: scroll; }
+  html { background: var(--hui-cloud); overflow-y: scroll; }
   body { @apply bg-background font-sans text-foreground antialiased; }
   button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [type="button"]:not(:disabled), [type="submit"]:not(:disabled), [type="reset"]:not(:disabled), a[href], select:not(:disabled), input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled) { @apply cursor-pointer; }
-  ::selection { background: #c9d9cb; color: #283b31; }
+  ::selection { background: #f4e6c6; color: var(--hui-pine); }
 }
 
 @layer components {
@@ -85,8 +93,22 @@
   .container { width: 100%; margin-inline: auto; padding-inline: 1rem; }
   @media (min-width: 640px) { .container { padding-inline: 1.5rem; } }
   @media (min-width: 1024px) { .container { max-width: 1280px; padding-inline: 2rem; } }
-  .hui-dialog { border-color: #cfd9cf; background: #fffdfa; color: #283b31; }
-  .hui-dialog input[type="range"] { accent-color: #355b48; }
+  .hui-dialog { border-color: var(--hui-border-strong); background: var(--hui-cloud); color: var(--hui-pine); }
+  .hui-dialog input[type="range"] { accent-color: var(--hui-gold); }
+}
+
+/* 將既有介面中的舊墨綠／米白工具類別收斂至五色系，避免逐頁重複定義色碼。 */
+@layer utilities {
+  [class*="bg-[#fffdfa]"], [class*="bg-[#f7f4ee]"], [class*="bg-[#f6f7f2]"] { background-color: var(--hui-snow) !important; }
+  [class*="bg-[#edf5ed]"], [class*="bg-[#edf2ed]"], [class*="bg-[#dce9dc]"], [class*="bg-[#f4f8f3]"], [class*="bg-[#f6f5ef]"], [class*="bg-[#f7faf7]"] { background-color: var(--hui-cloud) !important; }
+  [class*="bg-[#f3eef9]"], [class*="bg-white"] { background-color: var(--hui-snow) !important; }
+  [class*="bg-[#355b48]"], [class*="bg-[#294a3a]"], [class*="bg-[#3e6c50]"], [class*="bg-[#456e57]"] { background-color: var(--hui-gold) !important; }
+  [class*="hover:bg-[#355b48]"]:hover, [class*="hover:bg-[#294a3a]"]:hover, [class*="hover:bg-[#3e6c50]"]:hover, [class*="hover:bg-[#456e57]"]:hover { background-color: var(--hui-gold-hover) !important; }
+  [class*="border-[#cfd9cf]"], [class*="border-[#c9d5ca]"], [class*="border-[#d8ded5]"], [class*="border-[#b9cdbd]"] { border-color: var(--hui-border-strong) !important; }
+  [class*="text-[#283b31]"], [class*="text-[#355b48]"] { color: var(--hui-pine) !important; }
+  [class*="text-[#456153]"], [class*="text-[#6c7e70]"] { color: var(--hui-graphite) !important; }
+  [class*="text-[#6b4d83]"] { color: var(--hui-graphite) !important; }
+  [class*="bg-[#355b48]"][class*="text-[#fffdfa]"], [class*="bg-[#355b48]"][class*="text-white"], [class*="bg-[#294a3a]"][class*="text-[#fffdfa]"] { color: var(--hui-pine) !important; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
