@@ -51,10 +51,7 @@ export function AuthLanding() {
           <div className="absolute inset-0 opacity-55 [background-image:radial-gradient(circle_at_18%_21%,#bc694c_0,transparent_28%),radial-gradient(circle_at_72%_78%,#6c9575_0,transparent_27%)]" />
           <div className="relative flex h-full flex-col justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <img src={titleIconSrc} className="h-9 w-9" alt="繪月錄圖示" />
-                <p className="text-xs tracking-[0.25em] text-[#dce9dc]">繪月錄</p>
-              </div>
+              <p className="text-xs tracking-[0.25em] text-[#dce9dc]">繪月錄</p>
               <h1 className="mt-5 font-display text-5xl leading-[1.12]">筆落有致，契約有法。</h1>
             </div>
             <p className="max-w-sm text-sm leading-7 text-[#fffdfa]/85">小常識：先整理人物設定、構圖與參考資料，能讓繪師更準確掌握畫面方向。</p>
@@ -63,7 +60,7 @@ export function AuthLanding() {
 
         <main className="flex items-center justify-center p-7 sm:p-12">
           <div className="w-full max-w-sm space-y-5">
-            <p className="font-display text-3xl font-semibold text-[#283b31]">重臨畫案</p>
+            <div className="flex items-center gap-3"><img src={titleIconSrc} className="h-9 w-9" alt="繪月錄圖示" /><p className="font-display text-3xl font-semibold text-[#283b31]">重臨畫案</p></div>
 
             <Button className="w-full border-[#d4a359] bg-[#d4a359] text-[#1f382c] hover:bg-[#bd8a45]" variant="outline" disabled={googleLoading} onClick={() => void googleLogin()}>
               <LogIn className="mr-1.5 h-4 w-4" />

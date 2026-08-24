@@ -27,8 +27,12 @@ const socialLinks = [
   { label: "作品集", href: "https://lunar72016.wixsite.com/muing", icon: Palette },
   { label: "Facebook", href: "https://www.facebook.com/liu.mu.ying.760255", icon: Facebook },
   { label: "Threads", href: "https://www.threads.com/@liu_mu_ying", icon: AtSign },
-  { label: "X", href: "https://x.com/Muing_315830", icon: Send },
+  { label: "X", href: "https://x.com/Muing_315830", icon: XBrandIcon },
 ];
+
+function XBrandIcon({ className }: { className?: string }) {
+  return <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231L18.244 2.25Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" /></svg>;
+}
 
 function makePublicArtworkItem(settings: StudioSettings): ArtworkItem | null {
   const scope = getAvailableScopes(settings)[0] as ArtworkItem["artScope"] | undefined;
@@ -253,7 +257,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
           <div className="flex flex-wrap items-center justify-between gap-3 text-[#dbe8dc]"><div className="flex items-center gap-3"><MoonStar className="h-6 w-6" /><span className="text-xs font-semibold tracking-[.18em]">繪月錄 · 寄墨主入口</span></div><Button type="button" variant="outline" size="sm" className="border-[#a9c1ad]/70 bg-[#355b48]/65 text-[#fffdfa] hover:bg-[#456e57] hover:text-[#fffdfa]" onClick={() => { window.location.hash = "/"; }}>重臨畫案</Button></div>
           <h1 className="mt-5 font-display text-3xl sm:text-4xl">把委託內容，交給月光妥善收錄。</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-[#d8e4da]">您可先填寫墨諾函箋，並隨時以 Google 帳號或專屬驗證碼查看自己的畫約進度。</p>
-          <div className="mt-6 flex flex-wrap gap-2">{socialLinks.map(({ label, href, icon: Icon }) => <a key={label} href={href} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1.5 rounded-full border border-[#a9c1ad]/45 bg-[#355b48]/65 px-3 py-1.5 text-xs font-medium text-[#fffdfa] transition hover:bg-[#456e57]"><Icon className="h-3.5 w-3.5" />{label}</a>)}</div>
+          <div className="mt-6 flex flex-wrap gap-2">{socialLinks.map(({ label, href, icon: Icon }) => <a key={label} href={href} target="_blank" rel="noreferrer noopener" className="inline-flex w-[calc((100%-1rem)/3)] items-center justify-center gap-1.5 rounded-full border border-[#f8f9fa]/35 bg-[#f8f9fa]/18 px-3 py-1.5 text-xs font-medium text-[#e4c27e] transition hover:bg-[#f8f9fa]/30 hover:text-[#d4a359] sm:w-24"><Icon className="h-3.5 w-3.5" />{label}</a>)}</div>
         </header>
         <div className="mt-5 flex rounded-2xl border border-[#cfd9cf] bg-[#fffdfa] p-1.5">
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<ClipboardList />}>懸榜昭繪</TabButton>
