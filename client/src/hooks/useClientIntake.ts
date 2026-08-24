@@ -2,7 +2,7 @@ import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress
 import { Commission, createBlankCommission, startOfWeek } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
 import { User } from "firebase/auth";
-import { collection, deleteDoc, doc, getDocFromServer, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocFromServer, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where, writeBatch } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function commissionFromClientSubmission(submission: ClientSubmission): Commission {
@@ -149,6 +149,34 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     await Promise.all([...submissionMatches.docs, ...progressMatches.docs].map((item) => deleteDoc(item.ref)));
   }, [user?.uid]);
 
+  const purgeOrphanPortalRecords = useCallback(async (commissionIds: string[]) => {
+    const db = firestoreDb;
+    if (!db || !user) throw new Error("目前無法連接資料庫");
+    const knownCommissionIds = new Set(commissionIds.filter(Boolean));
+    const [submissionSnapshot, progressSnapshot] = await Promise.all([
+      getDocs(query(collection(db, "clientSubmissions"), where("ownerUid", "==", user.uid))),
+      getDocs(query(collection(db, "clientProgress"), where("ownerUid", "==", user.uid))),
+    ]);
+    const submissions = submissionSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClientSubmission));
+    const pendingCodes = new Set(submissions.filter((item) => item.state === "submitted").map((item) => item.accessCode).filter((code): code is string => Boolean(code)));
+    const staleSubmissions = submissionSnapshot.docs.filter((item) => {
+      const submission = item.data() as ClientSubmission;
+      return submission.state !== "submitted" && Boolean(submission.commissionId) && !knownCommissionIds.has(submission.commissionId!);
+    });
+    const staleProgress = progressSnapshot.docs.filter((item) => {
+      const progress = item.data() as ClientProgress;
+      if (progress.commissionId) return !knownCommissionIds.has(progress.commissionId);
+      return !pendingCodes.has(progress.accessCode ?? progress.id);
+    });
+    const records = [...staleSubmissions, ...staleProgress];
+    for (let index = 0; index < records.length; index += 450) {
+      const batch = writeBatch(db);
+      records.slice(index, index + 450).forEach((item) => batch.delete(item.ref));
+      await batch.commit();
+    }
+    return { submissions: staleSubmissions.length, progress: staleProgress.length };
+  }, [user?.uid]);
+
   const syncProgress = useCallback(async (commission: Commission) => {
     const db = firestoreDb;
     if (!db || !user) return;
@@ -159,5 +187,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, syncProgress }), [discardSubmission, error, getOrCreateCodeProgress, loading, publishExistingProgress, publishProgress, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, purgeOrphanPortalRecords, syncProgress }), [discardSubmission, error, getOrCreateCodeProgress, loading, publishExistingProgress, publishProgress, purgeOrphanPortalRecords, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }

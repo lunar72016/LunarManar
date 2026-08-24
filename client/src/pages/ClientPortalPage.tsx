@@ -20,14 +20,14 @@ type PortalTab = "submit" | "progress";
 export type PublicScheduleChoice = "queued" | "reservation" | "rush";
 
 const emptyForm: PublicSubmissionFormState = {
-  clientName: "", contactEmail: "", contactChannel: "Facebook", contactHandle: "", referenceUrls: "", scheduleChoice: "queued" as PublicScheduleChoice, reservationDate: "", artworkItems: [] as ArtworkItem[], licenses: [] as LicenseOption[], rushDueDate: "", privacyMode: "open" as PrivacyMode, privacyUntil: "", characterSettingNote: "", poseNote: "", costumeDesignNote: "", accessoryNote: "", requirements: "", deliveryNote: "",
+  clientName: "", contactEmail: "", contactChannel: "Facebook", contactHandle: "", referenceUrls: "", scheduleChoice: "queued" as PublicScheduleChoice, reservationDate: "", artworkItems: [] as ArtworkItem[], licenses: [] as LicenseOption[], rushDueDate: "", privacyMode: "open" as PrivacyMode, privacyUntil: "", characterSettingNote: "", poseNote: "", costumeDesignNote: "", accessoryNote: "", requirements: "", deliveryNote: "", termsAccepted: false,
 };
 
 const socialLinks = [
-  { label: "作品集", href: "https://lunar72016.wixsite.com/muing", icon: Palette },
+  { label: "作品集與委託須知", href: "https://lunar72016.wixsite.com/muing", icon: Palette },
   { label: "Facebook", href: "https://www.facebook.com/liu.mu.ying.760255", icon: Facebook },
   { label: "Threads", href: "https://www.threads.com/@liu_mu_ying", icon: AtSign },
-  { label: "X", href: "https://x.com/Muing_315830", icon: XBrandIcon },
+  { label: "X", href: "https://x.com/Muing_315830", icon: XBrandIcon, iconOnly: true },
 ];
 
 function XBrandIcon({ className }: { className?: string }) {
@@ -167,6 +167,10 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
       setError("選擇加急時，請填寫加急交稿日以判定對應倍率。");
       return;
     }
+    if (!form.termsAccepted) {
+      setError("請先閱讀委託須知，並確認預估底價僅供參考後再寄出墨諾函箋。");
+      return;
+    }
     if (!firestoreDb) { setError("Firebase 尚未設定完成。"); return; }
     setSubmitting(true);
     setError(null);
@@ -257,7 +261,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
           <div className="flex flex-wrap items-center justify-between gap-3 text-[#dbe8dc]"><div className="flex items-center gap-3"><MoonStar className="h-6 w-6" /><span className="text-xs font-semibold tracking-[.18em]">繪月錄 · 寄墨主入口</span></div><Button type="button" variant="outline" size="sm" className="border-[#a9c1ad]/70 bg-[#355b48]/65 text-[#fffdfa] hover:bg-[#456e57] hover:text-[#fffdfa]" onClick={() => { window.location.hash = "/"; }}>重臨畫案</Button></div>
           <h1 className="mt-5 font-display text-3xl sm:text-4xl">把委託內容，交給月光妥善收錄。</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-[#d8e4da]">您可先填寫墨諾函箋，並隨時以 Google 帳號或專屬驗證碼查看自己的畫約進度。</p>
-          <div className="mt-6 flex flex-wrap gap-2">{socialLinks.map(({ label, href, icon: Icon }) => <a key={label} href={href} target="_blank" rel="noreferrer noopener" className="inline-flex w-[calc((100%-1rem)/3)] items-center justify-center gap-1.5 rounded-full border border-[#f8f9fa]/35 bg-[#f8f9fa]/18 px-3 py-1.5 text-xs font-medium text-[#e4c27e] transition hover:bg-[#f8f9fa]/30 hover:text-[#d4a359] sm:w-24"><Icon className="h-3.5 w-3.5" />{label}</a>)}</div>
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">{socialLinks.map(({ label, href, icon: Icon, iconOnly }) => <a key={label} href={href} target="_blank" rel="noreferrer noopener" aria-label={label} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-full border border-[#f8f9fa]/35 bg-[#f8f9fa]/18 px-3 py-1.5 text-[11px] font-medium text-[#e4c27e] transition hover:bg-[#f8f9fa]/30 hover:text-[#d4a359]"><Icon className="h-3.5 w-3.5 shrink-0" />{!iconOnly && <span className="truncate">{label}</span>}</a>)}</div>
         </header>
         <div className="mt-5 flex rounded-2xl border border-[#cfd9cf] bg-[#fffdfa] p-1.5">
           <TabButton active={tab === "submit"} onClick={() => setTab("submit")} icon={<ClipboardList />}>懸榜昭繪</TabButton>

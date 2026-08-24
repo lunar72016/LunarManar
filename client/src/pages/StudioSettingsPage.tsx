@@ -3,16 +3,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { artScopeOptions, finishLevelOptions, qSizeOptions, rushLevelOptions, type ArtScope, type FinishLevel, type LicenseOption } from "@/lib/commission";
 import { MultiplierRange, StudioSettings, normalizeStudioSettings } from "@/lib/studioSettings";
-import { BookMarked, Info, LayoutList, Loader2, Plus, Save, SlidersHorizontal, X } from "lucide-react";
+import { BookMarked, Info, LayoutList, Loader2, Plus, Save, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-type Props = { settings: StudioSettings; loading: boolean; saving: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void> };
+type Props = { settings: StudioSettings; loading: boolean; saving: boolean; purging: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
 const labels = { commercial: "商用", promotion: "宣傳", buyout: "買斷" } as const;
 const money = (value: string) => { const n = Number(value); return value.trim() && n > 0 && Number.isFinite(n) ? n : null; };
 const multiplier = (value: string, fallback: number) => { const n = Number(value); return n >= 1 && Number.isFinite(n) ? n : fallback; };
 
-export default function StudioSettingsPage({ settings, loading, saving, error, onSave }: Props) {
+export default function StudioSettingsPage({ settings, loading, saving, purging, error, onSave, onPurgeDeletedData }: Props) {
   const [draft, setDraft] = useState(() => normalizeStudioSettings(settings));
   const [scope, setScope] = useState<ArtScope>(artScopeOptions[0]);
   const [finish, setFinish] = useState<FinishLevel>(finishLevelOptions[0]);
@@ -49,6 +49,16 @@ export default function StudioSettingsPage({ settings, loading, saving, error, o
       toast.success("丹青設案已儲存");
     } catch {
       toast.error("儲存設定失敗，請檢查 Firebase 規則。");
+    }
+  };
+  const purgeDeletedData = async () => {
+    if (!window.confirm("這會永久刪除沒有對應正式畫約的已受理委託函與公開進度。仍在待啟墨函、現有畫約、封存畫約都不會受到影響。是否繼續？")) return;
+    if (!window.confirm("此操作無法復原。請再次確認要清理測試殘留資料。")) return;
+    try {
+      const result = await onPurgeDeletedData();
+      toast.success(result.submissions || result.progress ? `已清理 ${result.submissions} 封函件與 ${result.progress} 份公開進度` : "沒有找到可清理的測試殘留資料");
+    } catch (cleanupError) {
+      toast.error("清理資料失敗", { description: cleanupError instanceof Error ? cleanupError.message : "請確認 Firebase 規則與網路後再試。" });
     }
   };
 
@@ -90,6 +100,10 @@ export default function StudioSettingsPage({ settings, loading, saving, error, o
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-2"><RangePanel title="加急倍率" entries={rushLevelOptions.map((item) => [item, item])} values={draft.rushMultiplierRanges} onChange={(key, field, value) => updateRange("rush", key, field, value)} /><RangePanel title="權利倍率" entries={Object.entries(labels)} values={draft.licenseMultiplierRanges} onChange={(key, field, value) => updateRange("license", key, field, value)} /></div>
+
+      <Panel icon={<Trash2 />} title="清理測試殘留資料" description="僅清除已不存在正式畫約的已受理函件與公開進度；待啟墨函、現有與封存畫約均會保留。">
+        <Button type="button" variant="outline" disabled={purging} className="border-[#bc694c] text-[#a9573c] hover:bg-[#fff0e9]" onClick={() => void purgeDeletedData()}>{purging ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}{purging ? "清理中…" : "永久清理已刪除測試資料"}</Button>
+      </Panel>
     </div>
   </main>;
 }
