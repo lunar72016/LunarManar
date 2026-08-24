@@ -20,7 +20,9 @@ import StudioSettingsPage from "@/pages/StudioSettingsPage";
 import ClientPortalPage from "@/pages/ClientPortalPage";
 import { getClientProgressPath, getPendingClientSubmissions, isPortalAccessCode } from "@/lib/clientPortal";
 import { describeEmailPasswordAuthError, describeFirebaseAuthError, firestoreDb } from "@/lib/firebase";
-import { ArchiveRestore, BadgePlus, CalendarClock, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
+import { groupCompletedCommissionsByYearMonth } from "@/lib/completedArchive";
+import { createWorkspaceBackup, downloadWorkspaceBackup } from "@/lib/workspaceBackup";
+import { ArchiveRestore, BadgePlus, CalendarClock, ChevronDown, ChevronRight, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
@@ -52,6 +54,7 @@ function CommissionWorkspace() {
   const [selected, setSelected] = useState<Commission | null>(null);
   const [submissionToAccept, setSubmissionToAccept] = useState<import("@/lib/clientPortal").ClientSubmission | null>(null);
   const [importing, setImporting] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const [purging, setPurging] = useState(false);
   const publicProgressSyncSignature = useRef("");
 
@@ -158,6 +161,13 @@ function CommissionWorkspace() {
     try { return await intake.purgeOrphanPortalRecords(commissions.map((commission) => commission.id)); }
     finally { setPurging(false); }
   };
+  const backupWorkspace = async () => {
+    setBackingUp(true);
+    try {
+      const portal = await intake.getBackupPortalRecords();
+      downloadWorkspaceBackup(createWorkspaceBackup({ studioSettings: studio.settings, commissions, ...portal }));
+    } finally { setBackingUp(false); }
+  };
   const acceptSubmission = (submission: import("@/lib/clientPortal").ClientSubmission) => {
     setSubmissionToAccept(submission);
     setSelected(commissionFromClientSubmission(submission));
@@ -178,7 +188,7 @@ function CommissionWorkspace() {
   const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "墨諾函箋" : "丹青設案";
 
   return <TooltipProvider><Toaster richColors position="top-right" /><DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName}>
-    {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} purging={purging} error={studio.error} onSave={studio.saveSettings} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
+    {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} backingUp={backingUp} purging={purging} error={studio.error} onSave={studio.saveSettings} onBackup={backupWorkspace} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
       {error && <div className="mb-5 rounded-2xl border border-[#bc694c] bg-[#fff0e9] px-4 py-3 text-sm text-[#8e4932]">Firebase 資料同步提示：{error}</div>}
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#283b31]">{heading}</p><p className="mt-2 text-sm text-[#456153]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>
@@ -250,7 +260,17 @@ function ArchivedView({ commissions, total, stage, pageSize, hasMore, onStageCha
 function BoardView({ months, rush, reservations, completed, onView }: { months: Record<string, Commission[]>; rush: Commission[]; reservations: Commission[]; completed: Commission[]; onView: (commission: Commission) => void }) {
   const hasQueued = Object.keys(months).length > 0;
   if (!hasQueued && !rush.length && !reservations.length && !completed.length) return <EmptyState />;
-  return <div className="space-y-8"><MonthlyQueueShelf months={months} rush={rush} onView={onView} /><CommissionShelf title="先寄墨諾" description="預約案件不計入一般排單，保留約定與等待順序。" commissions={reservations} onView={onView} compact sort={(items) => sortCommissionsForSchedule(items)} /><CommissionShelf title="墨痕錦匣" description="已完成的案件依完稿日期由新至舊收錄。" commissions={completed} onView={onView} compact sort={(items) => [...items].sort((a, b) => (b.completedAt ?? b.updatedAt) - (a.completedAt ?? a.updatedAt))} /></div>;
+  return <div className="space-y-8"><MonthlyQueueShelf months={months} rush={rush} onView={onView} /><CommissionShelf title="先寄墨諾" description="預約案件不計入一般排單，保留約定與等待順序。" commissions={reservations} onView={onView} compact sort={(items) => sortCommissionsForSchedule(items)} /><CompletedArchiveShelf commissions={completed} onView={onView} /></div>;
+}
+
+function CompletedArchiveShelf({ commissions, onView }: { commissions: Commission[]; onView: (commission: Commission) => void }) {
+  const grouped = groupCompletedCommissionsByYearMonth(commissions);
+  const [openYears, setOpenYears] = useState<string[]>(() => grouped[0] ? [grouped[0].year] : []);
+  const [openMonths, setOpenMonths] = useState<string[]>(() => grouped[0]?.months[0] ? [grouped[0].months[0].key] : []);
+  const toggleYear = (year: string) => setOpenYears((current) => current.includes(year) ? current.filter((item) => item !== year) : [...current, year]);
+  const toggleMonth = (month: string) => setOpenMonths((current) => current.includes(month) ? current.filter((item) => item !== month) : [...current, month]);
+  if (!grouped.length) return null;
+  return <section className="rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.06)] sm:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">墨痕錦匣</h2><p className="mt-1 text-sm text-[#456153]">已完成案件依完稿年度與月份收錄；舊卷預設收合，需要時再展閱。</p></div><span className="rounded-full bg-[#edf2ed] px-3 py-1 text-xs font-medium text-[#456153]">{commissions.length} 張</span></div><div className="mt-5 space-y-3">{grouped.map((year) => { const yearOpen = openYears.includes(year.year); return <div key={year.year} className="overflow-hidden rounded-2xl border border-[#d8ded5]"><button type="button" onClick={() => toggleYear(year.year)} className="flex w-full items-center justify-between bg-[#edf5ed] px-4 py-3 text-left transition hover:bg-[#dce9dc]"><span className="flex items-center gap-2 font-display text-lg font-semibold text-[#283b31]">{yearOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{year.year} 年</span><span className="text-xs text-[#456153]">{year.months.reduce((sum, month) => sum + month.commissions.length, 0)} 張</span></button>{yearOpen && <div className="space-y-3 p-3">{year.months.map((month) => { const monthOpen = openMonths.includes(month.key); return <div key={month.key} className="rounded-xl border border-[#e1e6df] bg-[#f8f9fa]"><button type="button" onClick={() => toggleMonth(month.key)} className="flex w-full items-center justify-between px-3 py-2.5 text-left"><span className="flex items-center gap-2 text-sm font-semibold text-[#355b48]">{monthOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{month.label}</span><span className="text-xs text-[#6c7e70]">{month.commissions.length} 張</span></button>{monthOpen && <div className="grid gap-3 border-t border-[#e1e6df] p-3 sm:grid-cols-2 xl:grid-cols-3">{month.commissions.map((commission) => <CommissionCard commission={commission} key={commission.id} onView={onView} compact />)}</div>}</div>; })}</div>}</div>; })}</div></section>;
 }
 
 function MonthlyQueueShelf({ months, rush, onView }: { months: Record<string, Commission[]>; rush: Commission[]; onView: (commission: Commission) => void }) {

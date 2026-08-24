@@ -3,16 +3,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { artScopeOptions, finishLevelOptions, qSizeOptions, rushLevelOptions, type ArtScope, type FinishLevel, type LicenseOption } from "@/lib/commission";
 import { MultiplierRange, StudioSettings, normalizeStudioSettings } from "@/lib/studioSettings";
-import { BookMarked, Info, LayoutList, Loader2, Plus, Save, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { BookMarked, Download, Info, LayoutList, Loader2, Plus, Save, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-type Props = { settings: StudioSettings; loading: boolean; saving: boolean; purging: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
+type Props = { settings: StudioSettings; loading: boolean; saving: boolean; backingUp: boolean; purging: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void>; onBackup: () => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
 const labels = { commercial: "商用", promotion: "宣傳", buyout: "買斷" } as const;
 const money = (value: string) => { const n = Number(value); return value.trim() && n > 0 && Number.isFinite(n) ? n : null; };
 const multiplier = (value: string, fallback: number) => { const n = Number(value); return n >= 1 && Number.isFinite(n) ? n : fallback; };
 
-export default function StudioSettingsPage({ settings, loading, saving, purging, error, onSave, onPurgeDeletedData }: Props) {
+export default function StudioSettingsPage({ settings, loading, saving, backingUp, purging, error, onSave, onBackup, onPurgeDeletedData }: Props) {
   const [draft, setDraft] = useState(() => normalizeStudioSettings(settings));
   const [scope, setScope] = useState<ArtScope>(artScopeOptions[0]);
   const [finish, setFinish] = useState<FinishLevel>(finishLevelOptions[0]);
@@ -61,6 +61,10 @@ export default function StudioSettingsPage({ settings, loading, saving, purging,
       toast.error("清理資料失敗", { description: cleanupError instanceof Error ? cleanupError.message : "請確認 Firebase 規則與網路後再試。" });
     }
   };
+  const backup = async () => {
+    try { await onBackup(); toast.success("本機 JSON 備份已開始下載"); }
+    catch (backupError) { toast.error("建立本機備份失敗", { description: backupError instanceof Error ? backupError.message : "請確認網路後再試。" }); }
+  };
 
   if (loading) return <div className="flex min-h-[calc(100vh-70px)] items-center justify-center bg-[#fffdfa] text-sm text-[#456153]"><Loader2 className="mr-2 h-4 w-4 animate-spin" />正在展讀畫案設定…</div>;
 
@@ -100,6 +104,10 @@ export default function StudioSettingsPage({ settings, loading, saving, purging,
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-2"><RangePanel title="加急倍率" entries={rushLevelOptions.map((item) => [item, item])} values={draft.rushMultiplierRanges} onChange={(key, field, value) => updateRange("rush", key, field, value)} /><RangePanel title="權利倍率" entries={Object.entries(labels)} values={draft.licenseMultiplierRanges} onChange={(key, field, value) => updateRange("license", key, field, value)} /></div>
+
+      <Panel icon={<Download />} title="本機 JSON 備份" description="下載目前畫約、墨諾函箋、對契符節進度與丹青設案設定。建議在大量測試前及每月各留一份。">
+        <Button type="button" variant="outline" disabled={backingUp} className="border-[#b9cdbd] text-[#355b48] hover:bg-[#edf5ed]" onClick={() => void backup()}>{backingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}{backingUp ? "整理備份中…" : "下載本機 JSON 備份"}</Button>
+      </Panel>
 
       <Panel icon={<Trash2 />} title="清理測試殘留資料" description="僅清除已不存在正式畫約的已受理函件與公開進度；待啟墨函、現有與封存畫約均會保留。">
         <Button type="button" variant="outline" disabled={purging} className="border-[#bc694c] text-[#a9573c] hover:bg-[#fff0e9]" onClick={() => void purgeDeletedData()}>{purging ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}{purging ? "清理中…" : "永久清理已刪除測試資料"}</Button>

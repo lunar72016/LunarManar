@@ -177,6 +177,19 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     return { submissions: staleSubmissions.length, progress: staleProgress.length };
   }, [user?.uid]);
 
+  const getBackupPortalRecords = useCallback(async () => {
+    const db = firestoreDb;
+    if (!db || !user) throw new Error("目前無法連接資料庫");
+    const [submissionSnapshot, progressSnapshot] = await Promise.all([
+      getDocs(query(collection(db, "clientSubmissions"), where("ownerUid", "==", user.uid))),
+      getDocs(query(collection(db, "clientProgress"), where("ownerUid", "==", user.uid))),
+    ]);
+    return {
+      clientSubmissions: submissionSnapshot.docs.map((item) => hydrateClientSubmission(item.id, item.data() as ClientSubmission)),
+      clientProgress: progressSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ClientProgress)),
+    };
+  }, [user?.uid]);
+
   const syncProgress = useCallback(async (commission: Commission) => {
     const db = firestoreDb;
     if (!db || !user) return;
@@ -187,5 +200,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, purgeOrphanPortalRecords, syncProgress }), [discardSubmission, error, getOrCreateCodeProgress, loading, publishExistingProgress, publishProgress, purgeOrphanPortalRecords, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, purgeOrphanPortalRecords, getBackupPortalRecords, syncProgress }), [discardSubmission, error, getBackupPortalRecords, getOrCreateCodeProgress, loading, publishExistingProgress, publishProgress, purgeOrphanPortalRecords, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }
