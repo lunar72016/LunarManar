@@ -23,4 +23,16 @@ describe("Firebase Web App configuration", () => {
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(response.status).toBeLessThan(500);
   }, 15_000);
+
+  it("has a valid Web Push VAPID public key for Firebase Messaging subscriptions", () => {
+    const vapidKey = process.env.VITE_FIREBASE_MESSAGING_VAPID_KEY;
+    expect(vapidKey).toBeTruthy();
+    const normalized = (vapidKey ?? "").replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const raw = Buffer.from(padded, "base64");
+
+    // VAPID public keys are uncompressed P-256 points: one 0x04 prefix plus 64 coordinate bytes.
+    expect(raw).toHaveLength(65);
+    expect(raw[0]).toBe(4);
+  });
 });

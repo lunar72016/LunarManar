@@ -34,18 +34,19 @@ function createFirebaseApp() {
   return app;
 }
 
-const app = createFirebaseApp();
+export const firebaseApp = createFirebaseApp();
+export const firebaseMessagingConfigured = Boolean(firebaseApp && import.meta.env.VITE_FIREBASE_MESSAGING_VAPID_KEY);
 
 export const firebaseAuth = (() => {
-  if (!app || !clientWindow) return null;
-  if (!clientWindow.__lunarAuth) clientWindow.__lunarAuth = getAuth(app);
+  if (!firebaseApp || !clientWindow) return null;
+  if (!clientWindow.__lunarAuth) clientWindow.__lunarAuth = getAuth(firebaseApp);
   return clientWindow.__lunarAuth;
 })();
 
 export const firestoreDb = (() => {
-  if (!app || !clientWindow) return null;
+  if (!firebaseApp || !clientWindow) return null;
   if (!clientWindow.__lunarFirestore) {
-    clientWindow.__lunarFirestore = initializeFirestore(app, {
+    clientWindow.__lunarFirestore = initializeFirestore(firebaseApp, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
     });
   }

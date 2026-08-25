@@ -12,7 +12,7 @@ import { StudioSettings } from "@/lib/studioSettings";
 import type { PublicScheduleChoice } from "@/pages/ClientPortalPage";
 import { CalendarDays, Check, CheckCircle2, Copy, LoaderCircle, LogIn, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { zhTW } from "date-fns/locale";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type PublicSubmissionFormState = {
   clientName: string;
@@ -169,7 +169,19 @@ function PublicArtworkItem({ item, index, settings, onChange, onRemove, removabl
   const finishes = Array.from(new Set([...finishLevelOptions, ...getAvailableFinishes(settings, item.artScope), item.finishLevel]));
   const qSizes = Array.from(new Set([...qSizeOptions, ...getAvailableQSizes(settings), item.qSize ?? "2頭身"]));
   const ordinal = index + 1 <= 9 ? chineseNumbers[index + 1] : String(index + 1);
-  return <article className="rounded-2xl border border-[#d8ded5] bg-[#fffdfa] p-4"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><p className="font-display text-lg font-semibold text-[#355b48]">作畫項目 {ordinal}</p>{removable && <Button type="button" variant="ghost" size="sm" className="text-[#a9573c]" onClick={onRemove}><Trash2 className="mr-1 h-3.5 w-3.5" />移除此項</Button>}</div><div className="grid min-w-0 grid-cols-[5.75rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-4"><FormField label="人物數量"><Input type="number" min="1" value={item.characterCount} onChange={(event) => onChange({ characterCount: Math.max(1, Number(event.target.value) || 1) })} /></FormField><FormField label="繪製範圍"><Select value={item.artScope} onValueChange={(value) => onChange({ artScope: value as ArtworkItem["artScope"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{scopes.map((scope) => <SelectItem key={scope} value={scope}>{scope}</SelectItem>)}</SelectContent></Select></FormField>{item.artScope === "Q版" ? <FormField label="Q版規格"><Select value={item.qSize ?? qSizes[0] ?? "2頭身"} onValueChange={(value) => onChange({ qSize: value as ArtworkItem["qSize"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{qSizes.map((size) => <SelectItem key={size} value={size}>{size}</SelectItem>)}</SelectContent></Select></FormField> : <FormField label="精緻度"><Select value={item.finishLevel} onValueChange={(value) => onChange({ finishLevel: value as ArtworkItem["finishLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{finishes.map((finish) => <SelectItem key={finish} value={finish}>{finish}</SelectItem>)}</SelectContent></Select></FormField>}</div><FormField label="備註" className="mt-4"><Textarea className="min-h-20" value={item.note} onChange={(event) => onChange({ note: event.target.value })} /></FormField></article>;
+  const [countText, setCountText] = useState(String(item.characterCount));
+  useEffect(() => { setCountText(String(item.characterCount)); }, [item.characterCount]);
+  const updateCount = (value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    setCountText(value);
+    if (value) onChange({ characterCount: Math.max(1, Number(value)) });
+  };
+  const normalizeCount = () => {
+    const value = Math.max(1, Number(countText) || 1);
+    setCountText(String(value));
+    if (value !== item.characterCount) onChange({ characterCount: value });
+  };
+  return <article className="rounded-2xl border border-[#d8ded5] bg-[#fffdfa] p-4"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><p className="font-display text-lg font-semibold text-[#355b48]">作畫項目 {ordinal}</p>{removable && <Button type="button" variant="ghost" size="sm" className="text-[#a9573c]" onClick={onRemove}><Trash2 className="mr-1 h-3.5 w-3.5" />移除此項</Button>}</div><div className="grid min-w-0 grid-cols-[5.75rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-4"><FormField label="人物數量"><Input type="number" inputMode="numeric" min="1" value={countText} onChange={(event) => updateCount(event.target.value)} onBlur={normalizeCount} /></FormField><FormField label="繪製範圍"><Select value={item.artScope} onValueChange={(value) => onChange({ artScope: value as ArtworkItem["artScope"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{scopes.map((scope) => <SelectItem key={scope} value={scope}>{scope}</SelectItem>)}</SelectContent></Select></FormField>{item.artScope === "Q版" ? <FormField label="Q版規格"><Select value={item.qSize ?? qSizes[0] ?? "2頭身"} onValueChange={(value) => onChange({ qSize: value as ArtworkItem["qSize"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{qSizes.map((size) => <SelectItem key={size} value={size}>{size}</SelectItem>)}</SelectContent></Select></FormField> : <FormField label="精緻度"><Select value={item.finishLevel} onValueChange={(value) => onChange({ finishLevel: value as ArtworkItem["finishLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{finishes.map((finish) => <SelectItem key={finish} value={finish}>{finish}</SelectItem>)}</SelectContent></Select></FormField>}</div><FormField label="備註" className="mt-4"><Textarea className="min-h-20" value={item.note} onChange={(event) => onChange({ note: event.target.value })} /></FormField></article>;
 }
 
 function FormField({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {

@@ -12,6 +12,9 @@ const plugins = [
   react(),
   tailwindcss(),
   VitePWA({
+    strategies: "injectManifest",
+    srcDir: "src",
+    filename: "firebase-messaging-sw.ts",
     registerType: "autoUpdate",
     includeAssets: ["hui-yue-title.svg"],
     manifest: {
@@ -23,6 +26,9 @@ const plugins = [
       display: "standalone",
       lang: "zh-Hant",
       icons: [{ src: "hui-yue-title.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
+    },
+    injectManifest: {
+      globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
     },
     workbox: {
       navigateFallback: "index.html",

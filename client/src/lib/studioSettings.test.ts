@@ -30,4 +30,10 @@ describe("studio settings without avatar storage", () => {
     expect(settings.combinationPrices["大頭"]["一般"]).toBeNull();
     expect(settings.qVariantPrices).toEqual({ "表情貼": null, "2頭身": null, "2.5頭身": null });
   });
+
+  it("defaults notification scope to all new intakes and retains a later rush-only choice", () => {
+    expect(defaultStudioSettings().pushNotificationScope).toBe("all");
+    expect(normalizeStudioSettings({ pushNotificationScope: "rush", pushTrialStartedAt: 123 }).pushNotificationScope).toBe("rush");
+    expect(normalizeStudioSettings({ pushNotificationScope: "rush", pushTrialStartedAt: 123 }).pushTrialStartedAt).toBe(123);
+  });
 });

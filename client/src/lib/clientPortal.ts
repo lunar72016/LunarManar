@@ -62,6 +62,9 @@ export type ClientProgress = {
   scheduleType: ScheduleType;
   isRush: boolean;
   artworkItems: Array<{ id: string; summary: string }>;
+  /** 依畫約階段限制寫入公開快照的款項內容，避免未定案價格外洩。 */
+  paymentDisclosure: "estimate" | "deposit" | "total" | "hidden";
+  estimatedBaseAmount: number | null;
   totalAmount: number | null;
   depositAmount: number | null;
   depositState: PaymentState;
@@ -73,6 +76,13 @@ export type ClientProgress = {
   updatedAt: number;
   revokedAt: number | null;
 };
+
+export function getPublicPaymentDisclosure(status: CommissionStatus): ClientProgress["paymentDisclosure"] {
+  if (status === "inquiry") return "estimate";
+  if (["confirmed", "awaiting_deposit", "queued", "sketching", "sketch_confirmed"].includes(status)) return "deposit";
+  if (["awaiting_balance", "finalizing", "completed"].includes(status)) return "total";
+  return "hidden";
+}
 
 const statusNextStep: Record<CommissionStatus, string> = {
   inquiry: "繪師正在閱讀委託內容，稍後會與您確認細節。",
@@ -113,6 +123,9 @@ export function isPortalAccessCode(value: string) {
 /** 僅保留寄墨主端可顯示的畫約、款項與進度欄位，避免設定稿、內部備註與需求原文外洩。 */
 export function buildClientProgress(commission: Commission, access: Pick<ClientProgress, "id" | "accessMode" | "clientUid" | "accessCode" | "ownerUid">): ClientProgress {
   const dueDateLabel = commission.dueDate ? formatDisplayDate(commission.dueDate) : null;
+  const paymentDisclosure = getPublicPaymentDisclosure(commission.status);
+  const revealDeposit = paymentDisclosure === "deposit" || paymentDisclosure === "total";
+  const revealTotal = paymentDisclosure === "total";
   return {
     ...access,
     commissionId: commission.id,
@@ -127,13 +140,15 @@ export function buildClientProgress(commission: Commission, access: Pick<ClientP
     scheduleType: commission.scheduleType,
     isRush: commission.isRush,
     artworkItems: commission.artworkItems.map((item) => ({ id: item.id, summary: item.artScope === "Q版" ? `${item.characterCount} 人 · Q版 ${item.qSize ?? "未選規格"}` : `${item.characterCount} 人 · ${item.artScope} · ${item.finishLevel}` })),
-    totalAmount: commission.totalAmount,
-    depositAmount: commission.depositAmount,
-    depositState: commission.depositState,
-    depositPaidAt: commission.depositPaidAt,
-    balanceAmount: commission.balanceAmount,
-    balanceState: commission.balanceState,
-    balancePaidAt: commission.balancePaidAt,
+    paymentDisclosure,
+    estimatedBaseAmount: paymentDisclosure === "estimate" ? (commission.estimatedPrice ?? commission.basePriceMin) : null,
+    totalAmount: revealTotal ? commission.totalAmount : null,
+    depositAmount: revealDeposit ? commission.depositAmount : null,
+    depositState: revealDeposit ? commission.depositState : "unrecorded",
+    depositPaidAt: revealDeposit ? commission.depositPaidAt : null,
+    balanceAmount: revealTotal ? commission.balanceAmount : null,
+    balanceState: revealTotal ? commission.balanceState : "unrecorded",
+    balancePaidAt: revealTotal ? commission.balancePaidAt : null,
     statusHistory: commission.statusHistory.map((item) => ({ status: item.status, at: item.at })),
     updatedAt: Date.now(),
     revokedAt: null,
@@ -156,6 +171,8 @@ export function buildPendingClientProgress(access: Pick<ClientProgress, "id" | "
     scheduleType: "queued",
     isRush: false,
     artworkItems: [],
+    paymentDisclosure: "estimate",
+    estimatedBaseAmount: null,
     totalAmount: null,
     depositAmount: null,
     depositState: "unrecorded",

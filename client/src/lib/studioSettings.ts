@@ -1,4 +1,5 @@
 import { artScopeOptions, finishLevelOptions, qSizeOptions, type LicenseOption, type QSize } from "@/lib/commission";
+import type { PushNotificationScope } from "@/lib/pushNotifications";
 
 export type MultiplierRange = { min: number; max: number };
 export type StudioSettings = {
@@ -8,6 +9,9 @@ export type StudioSettings = {
   qVariantPrices: Record<QSize, number | null>;
   rushMultiplierRanges: Record<string, MultiplierRange>;
   licenseMultiplierRanges: Record<LicenseOption, MultiplierRange>;
+  /** 背景通知試用時，預設全部新函件；可隨時收斂為僅加急。 */
+  pushNotificationScope: PushNotificationScope;
+  pushTrialStartedAt: number | null;
   updatedAt: number;
 };
 
@@ -20,6 +24,8 @@ export const defaultStudioSettings = (): StudioSettings => ({
   qVariantPrices: Object.fromEntries(qSizeOptions.map((variant) => [variant, null])) as Record<QSize, number | null>,
   rushMultiplierRanges: { "一般加急": defaultRange(), "中度加急": defaultRange(), "高度加急": defaultRange(), "極限加急": defaultRange() },
   licenseMultiplierRanges: { commercial: defaultRange(), promotion: defaultRange(), buyout: defaultRange() },
+  pushNotificationScope: "all",
+  pushTrialStartedAt: null,
   updatedAt: Date.now(),
 });
 
@@ -45,5 +51,7 @@ export function normalizeStudioSettings(value: Partial<StudioSettings> & { rushM
     })) as Record<QSize, number | null>,
     rushMultiplierRanges: Object.fromEntries(Object.keys(fallback.rushMultiplierRanges).map((key) => [key, normalizeRange(value?.rushMultiplierRanges?.[key] ?? value?.rushMultipliers?.[key])])),
     licenseMultiplierRanges: Object.fromEntries((Object.keys(fallback.licenseMultiplierRanges) as LicenseOption[]).map((key) => [key, normalizeRange(value?.licenseMultiplierRanges?.[key] ?? value?.licenseMultipliers?.[key])])) as Record<LicenseOption, MultiplierRange>,
+    pushNotificationScope: value?.pushNotificationScope === "rush" ? "rush" : "all",
+    pushTrialStartedAt: typeof value?.pushTrialStartedAt === "number" && Number.isFinite(value.pushTrialStartedAt) ? value.pushTrialStartedAt : null,
   };
 }

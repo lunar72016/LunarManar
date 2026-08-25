@@ -22,6 +22,7 @@ import { getClientProgressPath, getPendingClientSubmissions, isPortalAccessCode 
 import { describeEmailPasswordAuthError, describeFirebaseAuthError, firestoreDb } from "@/lib/firebase";
 import { groupCompletedCommissionsByYearMonth } from "@/lib/completedArchive";
 import { createWorkspaceBackup, downloadWorkspaceBackup } from "@/lib/workspaceBackup";
+import { syncPwaBadge } from "@/lib/pwaBadge";
 import { ArchiveRestore, BadgePlus, CalendarClock, ChevronDown, ChevronRight, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
@@ -43,7 +44,7 @@ function CommissionWorkspace() {
   const { commissions, syncState, error: commissionsError, saveQueuedCommission, deleteCommission, changeStatus, archiveCommission, restoreCommission, importInitialRecords } = useCommissions(user, true);
   const studio = useStudioSettings(user, true);
   const intake = useClientIntake(user, true);
-  const [activeView, setActiveView] = useState<WorkspaceView>("dashboard");
+  const [activeView, setActiveView] = useState<WorkspaceView>(() => new URLSearchParams(window.location.search).get("view") === "intake" ? "intake" : "dashboard");
   const [search, setSearch] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
   const [archiveStage, setArchiveStage] = useState<"all" | Exclude<CommissionStatus, "archived">>("all");
@@ -99,6 +100,11 @@ function CommissionWorkspace() {
     return { total: queuedCount, reservations: reservationCount, sketching: currentCommissions.filter((item) => item.status === "sketching" && item.scheduleType !== "reservation").length, finalizing: currentCommissions.filter((item) => item.status === "finalizing" && item.scheduleType !== "reservation").length, awaiting: pendingPayments.length, awaitingAmount: pendingPayments.reduce((total, item) => total + item.totalAmount, 0), income: paidDeposit + paidBalance };
   }, [activeCommissions]);
   const pendingPayments = useMemo(() => getPendingPaymentCommissions(filtered), [filtered]);
+  const pendingIntakeCount = useMemo(() => getPendingClientSubmissions(intake.submissions).length, [intake.submissions]);
+
+  useEffect(() => {
+    void syncPwaBadge(navigator, pendingIntakeCount);
+  }, [pendingIntakeCount]);
 
   const openNew = () => { setSubmissionToAccept(null); setSelected(null); setViewOpen(false); setDialogOpen(true); };
   const openEdit = (commission: Commission) => { setSelected(commission); setViewOpen(false); setDialogOpen(true); };
@@ -187,8 +193,8 @@ function CommissionWorkspace() {
   const error = commissionsError ?? studio.error;
   const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "墨諾函箋" : "丹青設案";
 
-  return <TooltipProvider><Toaster richColors position="top-right" /><DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName}>
-    {activeView === "settings" ? <StudioSettingsPage settings={studio.settings} loading={studio.loading} saving={studio.saving} backingUp={backingUp} purging={purging} error={studio.error} onSave={studio.saveSettings} onBackup={backupWorkspace} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
+  return <TooltipProvider><Toaster richColors position="top-right" /><DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName} pendingIntakeCount={pendingIntakeCount}>
+    {activeView === "settings" ? <StudioSettingsPage user={user} settings={studio.settings} loading={studio.loading} saving={studio.saving} backingUp={backingUp} purging={purging} error={studio.error} onSave={studio.saveSettings} onBackup={backupWorkspace} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
       {error && <div className="mb-5 rounded-2xl border border-[#bc694c] bg-[#fff0e9] px-4 py-3 text-sm text-[#8e4932]">Firebase 資料同步提示：{error}</div>}
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#283b31]">{heading}</p><p className="mt-2 text-sm text-[#456153]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>

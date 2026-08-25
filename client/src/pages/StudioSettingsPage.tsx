@@ -1,22 +1,25 @@
 import { Button } from "@/components/ui/button";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { artScopeOptions, finishLevelOptions, qSizeOptions, rushLevelOptions, type ArtScope, type FinishLevel, type LicenseOption } from "@/lib/commission";
 import { MultiplierRange, StudioSettings, normalizeStudioSettings } from "@/lib/studioSettings";
-import { BookMarked, Download, Info, LayoutList, Loader2, Plus, Save, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { BellRing, BookMarked, Download, Info, LayoutList, Loader2, Plus, Save, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { User } from "firebase/auth";
 import { toast } from "sonner";
 
-type Props = { settings: StudioSettings; loading: boolean; saving: boolean; backingUp: boolean; purging: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void>; onBackup: () => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
+type Props = { user: User | null; settings: StudioSettings; loading: boolean; saving: boolean; backingUp: boolean; purging: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void>; onBackup: () => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
 const labels = { commercial: "商用", promotion: "宣傳", buyout: "買斷" } as const;
 const money = (value: string) => { const n = Number(value); return value.trim() && n > 0 && Number.isFinite(n) ? n : null; };
 const multiplier = (value: string, fallback: number) => { const n = Number(value); return n >= 1 && Number.isFinite(n) ? n : fallback; };
 
-export default function StudioSettingsPage({ settings, loading, saving, backingUp, purging, error, onSave, onBackup, onPurgeDeletedData }: Props) {
+export default function StudioSettingsPage({ user, settings, loading, saving, backingUp, purging, error, onSave, onBackup, onPurgeDeletedData }: Props) {
   const [draft, setDraft] = useState(() => normalizeStudioSettings(settings));
   const [scope, setScope] = useState<ArtScope>(artScopeOptions[0]);
   const [finish, setFinish] = useState<FinishLevel>(finishLevelOptions[0]);
   const [newPrice, setNewPrice] = useState("");
+  const push = usePushNotifications(user);
 
   useEffect(() => setDraft(normalizeStudioSettings(settings)), [settings]);
 
@@ -104,6 +107,18 @@ export default function StudioSettingsPage({ settings, loading, saving, backingU
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-2"><RangePanel title="加急倍率" entries={rushLevelOptions.map((item) => [item, item])} values={draft.rushMultiplierRanges} onChange={(key, field, value) => updateRange("rush", key, field, value)} /><RangePanel title="權利倍率" entries={Object.entries(labels)} values={draft.licenseMultiplierRanges} onChange={(key, field, value) => updateRange("license", key, field, value)} /></div>
+
+      <Panel icon={<BellRing />} title="新墨諾函箋通知" description="目前以全部新函件進行一個月成本測試；月底可依 Firebase 用量改為僅加急函件。啟用裝置通知後才會在背景跳出提示。">
+        <div className="grid gap-3 rounded-xl border border-[#d2ded2] bg-[#f4f8f3] p-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+          <div><p className="text-sm font-medium text-[#1f382c]">推播範圍</p><p className="mt-0.5 text-xs leading-5 text-[#4a5568]">全部模式會通知每一封新函；僅加急模式只通知選擇加急的新函，側欄與 PWA 紅點仍會顯示全部待啟數量。</p></div>
+          <Select value={draft.pushNotificationScope} onValueChange={(value) => setDraft((current) => ({ ...current, pushNotificationScope: value === "rush" ? "rush" : "all", pushTrialStartedAt: current.pushTrialStartedAt ?? Date.now() }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">全部新函件（測試）</SelectItem><SelectItem value="rush">僅加急函件</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><Button type="button" variant={push.state === "enabled" ? "outline" : "default"} disabled={push.busy || push.state === "unsupported" || push.state === "needs-vapid"} className={push.state === "enabled" ? "border-[#1f382c] text-[#1f382c] hover:bg-[#edf1ef]" : "bg-[#1f382c] text-[#d4a359] hover:bg-[#283b31]"} onClick={() => void (push.state === "enabled" ? push.disable() : push.enable()).catch((nextError) => toast.error(nextError instanceof Error ? nextError.message : "裝置通知設定失敗"))}>{push.busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}{push.state === "enabled" ? "關閉這台裝置通知" : "開啟這台裝置通知"}</Button><span className="text-xs text-[#4a5568]">{push.state === "enabled" ? "此裝置已可接收背景通知。" : push.state === "needs-vapid" ? "尚待填入 Firebase Messaging 網頁憑證。" : push.state === "unsupported" ? "此瀏覽器不支援網頁推播。" : push.state === "denied" ? "通知已被瀏覽器拒絕，請在網站設定中重新允許。" : "點擊後才會要求瀏覽器通知權限。"}</span></div>
+        {push.error && <p className="mt-2 text-xs text-[#a9573c]">{push.error}</p>}
+        <p className="mt-3 rounded-lg border border-dashed border-[#cfd9cf] bg-[#edf1ef] px-3 py-2 text-xs leading-5 text-[#4a5568]">修改範圍後請按右上角「儲存設案」。推播點擊後會帶往墨諾函箋；側欄與 PWA 紅點始終顯示全部待啟數量。</p>
+      </Panel>
 
       <Panel icon={<Download />} title="本機 JSON 備份" description="下載目前畫約、墨諾函箋、對契符節進度與丹青設案設定。建議在大量測試前及每月各留一份。">
         <Button type="button" variant="outline" disabled={backingUp} className="border-[#b9cdbd] text-[#355b48] hover:bg-[#edf5ed]" onClick={() => void backup()}>{backingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}{backingUp ? "整理備份中…" : "下載本機 JSON 備份"}</Button>

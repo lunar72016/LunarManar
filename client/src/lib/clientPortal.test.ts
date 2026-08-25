@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, formatPortalDateInput, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, formatPortalDateInput, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicPaymentDisclosure, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -22,7 +22,7 @@ describe("委託人入口資料工具", () => {
     const commission = { ...createBlankCommission(), id: "commission-1", orderCode: "HY-001", clientName: "月見", status: "sketching" as const, depositAmount: 3000, totalAmount: 6000, scheduleWeekStart: Date.UTC(2026, 7, 3), artworkItems: [{ id: "item-1", characterCount: 2, artScope: "半身" as const, finishLevel: "一般" as const, qSize: null, note: "內部備註不公開" }], requirements: "私密設定網址" };
     const progress = buildClientProgress(commission, { id: "portal-1", accessMode: "code", clientUid: null, accessCode: "HY-0000000000000000-0000000000000000-0000000000000000", ownerUid: "artist" });
 
-    expect(progress).toMatchObject({ commissionId: "commission-1", statusLabel: "草稿製作", scheduleWeekLabel: "8月第一週", depositAmount: 3000, totalAmount: 6000, artworkItems: [{ id: "item-1", summary: "2 人 · 半身 · 一般" }] });
+    expect(progress).toMatchObject({ commissionId: "commission-1", statusLabel: "草稿製作", scheduleWeekLabel: "8月第一週", paymentDisclosure: "deposit", depositAmount: 3000, totalAmount: null, artworkItems: [{ id: "item-1", summary: "2 人 · 半身 · 一般" }] });
     expect(progress).not.toHaveProperty("requirements");
     expect(getClientProgressPath(progress.accessCode!)).toContain("/#/client/progress/HY-");
   });
@@ -40,6 +40,19 @@ describe("委託人入口資料工具", () => {
       .toEqual([{ label: "交稿期限", value: "2026年08月31日" }]);
     expect(getPublicScheduleDetails({ isRush: false, scheduleWeekLabel: "9月第二週", dueDateLabel: null }))
       .toEqual([{ label: "排程週次", value: "9月第二週" }]);
+  });
+
+  it("stages public payment snapshots from estimate to deposit and final total", () => {
+    const base = { ...createBlankCommission(), id: "commission-1", estimatedPrice: 1200, basePriceMin: 1000, depositAmount: 1500, depositState: "paid" as const, balanceAmount: 1500, balanceState: "unpaid" as const, totalAmount: 3000 };
+    const access = { id: "portal-1", accessMode: "code" as const, clientUid: null, accessCode: "HY-0000000000000000-0000000000000000-0000000000000000", ownerUid: "artist" };
+    const estimate = buildClientProgress({ ...base, status: "inquiry" }, access);
+    const deposit = buildClientProgress({ ...base, status: "sketch_confirmed" }, access);
+    const total = buildClientProgress({ ...base, status: "awaiting_balance" }, access);
+    expect(estimate).toMatchObject({ paymentDisclosure: "estimate", estimatedBaseAmount: 1200, depositAmount: null, totalAmount: null });
+    expect(deposit).toMatchObject({ paymentDisclosure: "deposit", estimatedBaseAmount: null, depositAmount: 1500, totalAmount: null, balanceAmount: null });
+    expect(total).toMatchObject({ paymentDisclosure: "total", totalAmount: 3000, depositAmount: 1500, balanceAmount: 1500 });
+    expect(getPublicPaymentDisclosure("completed")).toBe("total");
+    expect(getPublicPaymentDisclosure("archived")).toBe("hidden");
   });
 
   it("accepts only an active server record that exactly matches a hand-created code", () => {
