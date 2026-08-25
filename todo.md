@@ -314,12 +314,17 @@
 - [x] 規劃 Firebase 背景新函件推播，並確認訊息發送端與計費需求
 - [x] 提供全部新函件與僅加急函件可切換的背景手機推播規則
 - [x] 在已安裝的繪月錄 PWA 圖標顯示未確認墨諾函箋紅點／數量
-- [ ] 啟用 Firebase Blaze 並建立每月 NT$30 預算警示後部署加急背景推播
+- [x] 啟用 Firebase Blaze 並建立每月 NT$30 預算警示後部署加急背景推播
 - [x] 取得 Firebase Messaging 網頁憑證並驗證其格式
 - [x] 新增全部新函件／僅加急函件可切換的背景推播範圍，預設全部以量測一個月成本
-- [ ] 以 Firestore 同區 asia-east1 部署新函件推播雲端函式
-- [ ] 安裝 Firebase CLI 並取得 muingmanager 專案的部署登入授權
-- [ ] 排除 Firebase CLI 一次性授權連結的 client 驗證錯誤並完成所有者登入
+- [x] 以 Firestore 同區 asia-east1 部署新函件推播雲端函式
+- [x] 安裝 Firebase CLI 並取得 muingmanager 專案的部署登入授權
+- [x] 排除 Firebase CLI 一次性授權連結的 client 驗證錯誤並完成所有者登入
 - [x] 以使用者本機終端完成 Firebase 專案所有者登入，回報部署授權結果
-- [ ] 將已驗證的新函件推播函式、PWA service worker 與 Firestore 規則同步至 LunarManar GitHub 部署來源
+- [x] 將已驗證的新函件推播函式、PWA service worker 與 Firestore 規則同步至 LunarManar GitHub 部署來源
+- [x] 使用者以本機 LunarManar 工作副本套用推播提交並推送至 main（整合帳號無寫入權限）
+- [x] 使用者在 Windows 安裝 Git 並於新的 PowerShell 工作階段驗證 git --version
 - [x] 由 LunarManar 儲存庫擁有者新增 VITE_FIREBASE_MESSAGING_VAPID_KEY GitHub Actions secret
+- [x] 修正 Firebase Functions 使用者程式載入逾時，重新部署新函件推播函式
+- [x] 等待或修正 Eventarc Service Agent 權限後，建立 asia-east1 Firestore 事件觸發器
+- [ ] 確認 GitHub Pages 最新 PWA 已更新，且繪師丹青設案可見新函件通知控制
