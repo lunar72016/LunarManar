@@ -2,15 +2,16 @@ import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Cloud, CloudOff, Inbox, LayoutDashboard, ListTree, LogOut, PanelLeft, RefreshCw, Settings2 } from "lucide-react";
+import { Archive, Cloud, CloudOff, Inbox, LayoutDashboard, ListTree, LogOut, PanelLeft, RefreshCw, Settings2, Trash2 } from "lucide-react";
 
-export type WorkspaceView = "dashboard" | "board" | "archive" | "intake" | "settings";
+export type WorkspaceView = "dashboard" | "board" | "archive" | "intake" | "trash" | "settings";
 
 const menuItems: { id: WorkspaceView; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "千繪總覽", icon: LayoutDashboard },
   { id: "board", label: "排畫連雲", icon: ListTree },
   { id: "archive", label: "封畫入卷", icon: Archive },
   { id: "intake", label: "墨諾函箋", icon: Inbox },
+  { id: "trash", label: "垃圾桶", icon: Trash2 },
   { id: "settings", label: "丹青設案", icon: Settings2 },
 ];
 

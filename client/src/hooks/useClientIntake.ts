@@ -1,8 +1,9 @@
 import { ClientAccessMode, ClientProgress, ClientSubmission, buildClientProgress, createPortalAccessCode, getActiveCodeProgress, hydrateClientSubmission, isVerifiedCodeProgress } from "@/lib/clientPortal";
 import { Commission, createBlankCommission, startOfWeek } from "@/lib/commission";
 import { firestoreDb } from "@/lib/firebase";
+import type { TrashDocumentRecord } from "@/hooks/useTrash";
 import { User } from "firebase/auth";
-import { collection, deleteDoc, doc, getDocFromServer, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where, writeBatch } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocFromServer, getDocs, limit, onSnapshot, query, setDoc, updateDoc, waitForPendingWrites, where, writeBatch } from "firebase/firestore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function commissionFromClientSubmission(submission: ClientSubmission): Commission {
@@ -149,6 +150,24 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     await Promise.all([...submissionMatches.docs, ...progressMatches.docs].map((item) => deleteDoc(item.ref)));
   }, [user?.uid]);
 
+  const getCommissionTrashRecords = useCallback(async (commissionId: string): Promise<TrashDocumentRecord[]> => {
+    const db = firestoreDb;
+    if (!db || !user || !commissionId) return [];
+    const [submissionMatches, progressMatches] = await Promise.all([
+      getDocs(query(collection(db, "clientSubmissions"), where("commissionId", "==", commissionId))),
+      getDocs(query(collection(db, "clientProgress"), where("commissionId", "==", commissionId))),
+    ]);
+    return [...submissionMatches.docs, ...progressMatches.docs].map((item) => ({ path: item.ref.path, data: item.data() as Record<string, unknown> }));
+  }, [user?.uid]);
+
+  const getSubmissionTrashRecords = useCallback(async (submissionId: string): Promise<TrashDocumentRecord[]> => {
+    const db = firestoreDb;
+    if (!db || !user || !submissionId) return [];
+    const reference = doc(db, "clientSubmissions", submissionId);
+    const snapshot = await getDoc(reference);
+    return snapshot.exists() ? [{ path: reference.path, data: snapshot.data() as Record<string, unknown> }] : [];
+  }, [user?.uid]);
+
   const purgeOrphanPortalRecords = useCallback(async (commissionIds: string[]) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
@@ -200,5 +219,5 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     }));
   }, [user?.uid]);
 
-  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, purgeOrphanPortalRecords, getBackupPortalRecords, syncProgress }), [discardSubmission, error, getBackupPortalRecords, getOrCreateCodeProgress, loading, publishExistingProgress, publishProgress, purgeOrphanPortalRecords, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
+  return useMemo(() => ({ submissions, loading, error, publishProgress, discardSubmission, revokeProgress, publishExistingProgress, getOrCreateCodeProgress, revokeCommissionProgress, removeCommissionPortalRecords, getCommissionTrashRecords, getSubmissionTrashRecords, purgeOrphanPortalRecords, getBackupPortalRecords, syncProgress }), [discardSubmission, error, getBackupPortalRecords, getCommissionTrashRecords, getOrCreateCodeProgress, getSubmissionTrashRecords, loading, publishExistingProgress, publishProgress, purgeOrphanPortalRecords, removeCommissionPortalRecords, revokeCommissionProgress, revokeProgress, submissions, syncProgress]);
 }

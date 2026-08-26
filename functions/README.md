@@ -13,6 +13,10 @@
 
 訊息不包含寄墨主姓名、聯絡方式、委託內容或金額；通知文字固定為「有新的墨諾函箋待啟讀」。若 FCM 回覆裝置權杖失效，函式會刪除該裝置紀錄。
 
+## 七日垃圾桶
+
+排單與待啟墨函刪除後會先保存到繪師私有垃圾桶，可在七日內復原。`purgeExpiredTrash` 每日於台北時間凌晨 03:00 清除到期項目；此函式不會觸碰仍在七日期限內的資料，也不會修改新函件推播範圍。
+
 ## 一次性部署
 
 請先在本機安裝 [Firebase CLI](https://firebase.google.com/docs/cli)，並以擁有 `muingmanager` 專案權限的 Google 帳號登入。從專案根目錄執行：
@@ -27,4 +31,4 @@ firebase deploy --only functions:push,firestore:rules
 
 部署後，在繪師登入的「丹青設案 → 新墨諾函箋通知」中按「開啟這台裝置通知」，允許瀏覽器通知權限。首次請用 Firebase Console 的 Messaging「Send test message」測試該裝置，之後再以懸榜昭繪送出測試函件。
 
-> 變更 Firestore 規則前，請確認最新 `firestore.rules` 已包含 `notificationDevices` 存取規則；只有指定繪師 UID 能讀寫自己的裝置權杖。
+> 變更 Firestore 規則前，請確認最新 `firestore.rules` 已包含 `notificationDevices` 與 `trash` 存取規則；只有指定繪師 UID 能讀寫自己的裝置權杖與垃圾桶。

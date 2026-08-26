@@ -16,6 +16,7 @@ import { useCommissions } from "@/hooks/useCommissions";
 import { commissionFromClientSubmission, useClientIntake } from "@/hooks/useClientIntake";
 import { useStudioSettings } from "@/hooks/useStudioSettings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { getTrashDaysRemaining, useTrash } from "@/hooks/useTrash";
 import { Commission, CommissionStatus, PendingPaymentCommission, applyAutomaticPricing, filterArchivedCommissions, formatCurrency, getDefaultScheduleWeekStart, getLastQueuedWeek, getPendingPaymentCommissions, groupQueuedCommissionsByMonth, monthLabel, prioritizeRecentCommissions, sortCommissionsForSchedule, statusMeta } from "@/lib/commission";
 import StudioSettingsPage from "@/pages/StudioSettingsPage";
 import ClientPortalPage from "@/pages/ClientPortalPage";
@@ -24,7 +25,7 @@ import { describeEmailPasswordAuthError, describeFirebaseAuthError, firestoreDb 
 import { groupCompletedCommissionsByYearMonth } from "@/lib/completedArchive";
 import { createWorkspaceBackup, downloadWorkspaceBackup } from "@/lib/workspaceBackup";
 import { syncPwaBadge } from "@/lib/pwaBadge";
-import { ArchiveRestore, BadgePlus, CalendarClock, ChevronDown, ChevronRight, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
+import { ArchiveRestore, BadgePlus, CalendarClock, ChevronDown, ChevronRight, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, RotateCcw, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
@@ -42,9 +43,10 @@ export default function Home() {
 
 function CommissionWorkspace() {
   const { user } = useFirebaseAuth();
-  const { commissions, syncState, error: commissionsError, saveQueuedCommission, deleteCommission, changeStatus, archiveCommission, restoreCommission, importInitialRecords } = useCommissions(user, true);
+  const { commissions, syncState, error: commissionsError, saveQueuedCommission, changeStatus, archiveCommission, restoreCommission, importInitialRecords } = useCommissions(user, true);
   const studio = useStudioSettings(user, true);
   const intake = useClientIntake(user, true);
+  const trash = useTrash(user, true);
   const [activeView, setActiveView] = useState<WorkspaceView>(() => new URLSearchParams(window.location.search).get("view") === "intake" ? "intake" : "dashboard");
   const [search, setSearch] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
@@ -136,9 +138,9 @@ function CommissionWorkspace() {
   };
   const removeCommission = async (commission: Commission) => {
     try {
-      await intake.removeCommissionPortalRecords(commission.id);
-      await deleteCommission(commission.id);
-      toast.success(`已刪除「${commission.clientName}」的排單`, { description: "已從本機移除，系統會在背景同步刪除。" });
+      const related = await intake.getCommissionTrashRecords(commission.id);
+      await trash.moveToTrash({ kind: "commission", label: commission.clientName, records: [{ path: `artists/${user?.uid}/commissions/${commission.id}`, data: commission as unknown as Record<string, unknown> }, ...related] });
+      toast.success(`已將「${commission.clientName}」移入垃圾桶`, { description: "可在 7 日內復原；到期後會自動永久清除。" });
     } catch (deleteError) {
       toast.error("刪除時發生問題", { description: deleteError instanceof Error ? deleteError.message : "請稍後再試" });
       throw deleteError;
@@ -189,17 +191,18 @@ function CommissionWorkspace() {
     setDialogOpen(true);
   };
   const discardSubmission = async (submission: import("@/lib/clientPortal").ClientSubmission) => {
-    if (!window.confirm(`確定要刪除「${submission.clientName}」的待啟墨函嗎？此操作無法復原。`)) return;
+    if (!window.confirm(`確定要將「${submission.clientName}」的待啟墨函移入垃圾桶嗎？可在 7 日內復原。`)) return;
     try {
-      const outcome = await intake.discardSubmission(submission.id);
-      toast.success(outcome === "offline" ? "已在本機移除墨諾函箋" : "已刪除待啟墨函", { description: outcome === "offline" ? "目前離線，系統會在恢復連線後再同步刪除。" : undefined });
+      const records = await intake.getSubmissionTrashRecords(submission.id);
+      await trash.moveToTrash({ kind: "submission", label: submission.clientName, records });
+      toast.success("已移入垃圾桶", { description: "可在 7 日內復原；到期後會自動永久清除。" });
     } catch (discardError) {
       toast.error("刪除墨諾函箋時發生問題", { description: discardError instanceof Error ? discardError.message : "請稍後再試" });
     }
   };
 
   const error = commissionsError ?? studio.error;
-  const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "墨諾函箋" : "丹青設案";
+  const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "墨諾函箋" : activeView === "trash" ? "七日垃圾桶" : "丹青設案";
 
   return <TooltipProvider><Toaster richColors position="top-right" /><DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName} pendingIntakeCount={pendingIntakeCount}>
     {activeView === "settings" ? <StudioSettingsPage user={user} settings={studio.settings} loading={studio.loading} saving={studio.saving} backingUp={backingUp} purging={purging} error={studio.error} push={push} onSave={studio.saveSettings} onBackup={backupWorkspace} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
@@ -208,7 +211,7 @@ function CommissionWorkspace() {
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#283b31]">{heading}</p><p className="mt-2 text-sm text-[#456153]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>
         <div className="flex flex-wrap gap-2"><div className="relative min-w-[220px] flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#456153]" /><Input value={activeView === "archive" ? archiveSearch : search} onChange={(event) => { if (activeView === "archive") { setArchiveSearch(event.target.value); setArchiveLimit(12); } else setSearch(event.target.value); }} className="border-[#cfd9cf] bg-[#fffdfa] pl-9" placeholder={activeView === "archive" ? "搜尋入卷案件、單號或需求" : "搜尋委託人、範圍或精緻度"} /></div></div>
       </div>
-      {activeView === "intake" ? <ClientIntakeView submissions={intake.submissions} loading={intake.loading} error={intake.error} onAccept={acceptSubmission} onDiscard={discardSubmission} /> : commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered.filter((commission) => commission.status !== "archived")} pendingPayments={pendingPayments} onView={openView} onAdvance={advance} /> : activeView === "archive" ? <ArchivedView commissions={archivedMatches.slice(0, archiveLimit)} total={archivedMatches.length} stage={archiveStage} pageSize={archiveLimit} hasMore={archivedMatches.length > archiveLimit} onStageChange={(value) => { setArchiveStage(value); setArchiveLimit(12); }} onPageSizeChange={(value) => setArchiveLimit(value)} onLoadMore={() => setArchiveLimit((current) => current + 12)} onView={openView} /> : <BoardView months={boardGroups.months} rush={boardGroups.rush} reservations={boardGroups.reservations} completed={boardGroups.completed} onView={openView} />}
+      {activeView === "intake" ? <ClientIntakeView submissions={intake.submissions} loading={intake.loading} error={intake.error} onAccept={acceptSubmission} onDiscard={discardSubmission} /> : activeView === "trash" ? <TrashView items={trash.items} error={trash.error} onRestore={async (item) => { await trash.restore(item); toast.success(`已復原「${item.label}」`); }} onDelete={async (item) => { if (!window.confirm(`確定要永久刪除「${item.label}」嗎？此操作無法復原。`)) return; await trash.permanentlyDelete(item); toast.success("已永久刪除垃圾桶項目"); }} /> : commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered.filter((commission) => commission.status !== "archived")} pendingPayments={pendingPayments} onView={openView} onAdvance={advance} /> : activeView === "archive" ? <ArchivedView commissions={archivedMatches.slice(0, archiveLimit)} total={archivedMatches.length} stage={archiveStage} pageSize={archiveLimit} hasMore={archivedMatches.length > archiveLimit} onStageChange={(value) => { setArchiveStage(value); setArchiveLimit(12); }} onPageSizeChange={(value) => setArchiveLimit(value)} onLoadMore={() => setArchiveLimit((current) => current + 12)} onView={openView} /> : <BoardView months={boardGroups.months} rush={boardGroups.rush} reservations={boardGroups.reservations} completed={boardGroups.completed} onView={openView} />}
     </main>}
     {activeView !== "settings" && <Button className="fixed bottom-6 right-5 z-30 rounded-full bg-[#1f382c] px-5 text-[#d4a359] shadow-[0_12px_28px_rgba(31,56,44,.28)] hover:bg-[#283b31] hover:text-[#f4cf8d] sm:bottom-8 sm:right-8" onClick={openNew}><BadgePlus className="mr-1.5 h-4 w-4" />寫畫起約</Button>}
     <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} settings={studio.settings} defaultScheduleWeekStart={defaultScheduleWeekStart} lastQueuedWeek={lastQueuedWeek} />
@@ -244,8 +247,12 @@ function DashboardView({ summary, commissions, pendingPayments, onView, onAdvanc
       </SummaryGroup>
     </section>
     {pendingPayments.length > 0 && <PendingPaymentShelf payments={pendingPayments} onView={onView} />}
-    <section className="rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.07)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">近案墨痕</h2><p className="mt-1 text-sm text-[#456153]">最多顯示八張；加急或期限在前的畫約會優先置頂並以暖色標記，預約單不列入此處。</p></div><Sparkles className="h-5 w-5 text-[#6c9575]" /></div>{priority.length ? <div className="mt-5 grid gap-4 md:grid-cols-2">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onView={onView} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section>
+    <section className="rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.07)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">近案墨痕</h2><p className="mt-1 text-sm text-[#456153]">桌面最多上四下四共八張；加急或期限在前的畫約會優先置頂並以暖色標記，預約單不列入此處。</p></div><Sparkles className="h-5 w-5 text-[#6c9575]" /></div>{priority.length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onView={onView} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section>
   </div>;
+}
+
+function TrashView({ items, error, onRestore, onDelete }: { items: import("@/hooks/useTrash").TrashItem[]; error: string | null; onRestore: (item: import("@/hooks/useTrash").TrashItem) => Promise<void>; onDelete: (item: import("@/hooks/useTrash").TrashItem) => Promise<void> }) {
+  return <section className="mx-auto max-w-5xl rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.06)] sm:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">七日垃圾桶</h2><p className="mt-1 text-sm text-[#456153]">誤刪排單與待啟墨函會先保留 7 日，可隨時復原；到期後每日自動永久清除。</p></div><span className="rounded-full bg-[#edf2ed] px-3 py-1 text-xs font-medium text-[#355b48]">{items.length} 項</span></div>{error && <p className="mt-4 rounded-xl border border-[#e4c7b1] bg-[#fff6f0] px-3 py-2 text-sm text-[#a9573c]">垃圾桶同步提示：{error}</p>}{items.length ? <div className="mt-5 space-y-3">{items.map((item) => <article key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#d8ded5] bg-[#f8f9fa] p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate font-medium text-[#283b31]">{item.label}</p><p className="mt-1 text-xs text-[#456153]">{item.kind === "commission" ? "排單" : "待啟墨函"} · {new Date(item.deletedAt).toLocaleString("zh-TW")} 移入 · 尚餘 {getTrashDaysRemaining(item)} 日</p></div><div className="flex shrink-0 gap-2"><Button variant="outline" className="border-[#b9cdbd] text-[#355b48] hover:bg-[#edf5ed]" onClick={() => void onRestore(item)}><RotateCcw className="mr-1.5 h-4 w-4" />復原</Button><Button variant="outline" className="border-[#e4c7b1] text-[#a9573c] hover:bg-[#fff0e9]" onClick={() => void onDelete(item)}><Trash2 className="h-4 w-4" /><span className="sr-only">永久刪除</span></Button></div></article>)}</div> : <div className="py-12 text-center"><Trash2 className="mx-auto h-7 w-7 text-[#6c9575]" /><p className="mt-3 text-sm text-[#456153]">目前沒有可復原的刪除項目。</p></div>}</section>;
 }
 
 function PendingPaymentShelf({ payments, onView }: { payments: PendingPaymentCommission[]; onView: (commission: Commission) => void }) {

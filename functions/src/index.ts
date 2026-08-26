@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 
 initializeApp();
 
@@ -39,5 +40,25 @@ export const notifySubmissionChange = onDocumentWritten(
     const invalid = targets.filter((_, index) => !response.responses[index]?.success && ["messaging/registration-token-not-registered", "messaging/invalid-registration-token"].includes(response.responses[index]?.error?.code ?? ""));
     await Promise.all(invalid.map((item) => db.doc(`artists/${ownerUid}/notificationDevices/${item.id}`).delete()));
     logger.info("Intake push processed", { submissionId: event.params.submissionId, sent: response.successCount, removedInvalidDevices: invalid.length, pendingCount, shouldDisplay, isRush: Boolean(submission?.isRush) });
+  },
+);
+
+/** 每日清除到期的私人垃圾桶資料；內容在七日內仍可由繪師復原。 */
+export const purgeExpiredTrash = onSchedule(
+  { schedule: "0 3 * * *", timeZone: "Asia/Taipei", region: functionRegion },
+  async () => {
+    const db = getFirestore();
+    const now = Date.now();
+    let removed = 0;
+    while (true) {
+      const expired = await db.collectionGroup("trash").where("expiresAt", "<=", now).limit(450).get();
+      if (expired.empty) break;
+      const batch = db.batch();
+      expired.docs.forEach((item) => batch.delete(item.ref));
+      await batch.commit();
+      removed += expired.size;
+      if (expired.size < 450) break;
+    }
+    logger.info("Expired trash purged", { removed });
   },
 );

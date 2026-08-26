@@ -7,7 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatPortalDateInput } from "@/lib/clientPortal";
-import { ArtworkItem, LicenseOption, PrivacyMode, artScopeOptions, contactChannels, createArtworkItem, finishLevelOptions, formatCurrency, getAvailableFinishes, getAvailableQSizes, getAvailableScopes, qSizeOptions } from "@/lib/commission";
+import { ArtworkItem, LicenseOption, PrivacyMode, contactChannels, createArtworkItem, formatCurrency, getAvailableFinishes, getAvailableQSizes, getAvailableScopes } from "@/lib/commission";
+import { getPublicArtworkOptions, normalizePublicArtworkItem } from "@/lib/publicArtworkOptions";
 import { StudioSettings } from "@/lib/studioSettings";
 import type { PublicScheduleChoice } from "@/pages/ClientPortalPage";
 import { CalendarDays, Check, CheckCircle2, Copy, LoaderCircle, LogIn, Plus, ShieldCheck, Trash2 } from "lucide-react";
@@ -58,13 +59,17 @@ const chineseNumbers = ["", "壹", "貳", "參", "肆", "伍", "陸", "柒", "�
 const licenseLabels: Record<LicenseOption, string> = { commercial: "商用", promotion: "宣傳", buyout: "買斷" };
 
 function publicArtworkItem(settings: StudioSettings): ArtworkItem {
-  const scope = getAvailableScopes(settings)[0] as ArtworkItem["artScope"] | undefined;
-  if (!scope) return createArtworkItem();
-  if (scope === "Q版") return createArtworkItem({ artScope: scope, qSize: getAvailableQSizes(settings)[0] ?? "2頭身" });
-  return createArtworkItem({ artScope: scope, finishLevel: getAvailableFinishes(settings, scope)[0] ?? "一般", qSize: null });
+  return normalizePublicArtworkItem(settings) ?? createArtworkItem();
 }
 
 export function PublicSubmissionForm({ form, settings, pricingReady, previewAmount, previewMultiplier, update, onSubmit, submitting, loading, signedInWithGoogle, accountEmail, queueWeekLabel, onGoogle, onSignOut, resultCode }: PublicFormProps) {
+  useEffect(() => {
+    if (!pricingReady) return;
+    const normalized = form.artworkItems.map((item) => normalizePublicArtworkItem(settings, item)).filter((item): item is ArtworkItem => Boolean(item));
+    const changed = normalized.length !== form.artworkItems.length || normalized.some((item, index) => JSON.stringify(item) !== JSON.stringify(form.artworkItems[index]));
+    if (changed) update("artworkItems", normalized.length ? normalized : [publicArtworkItem(settings)]);
+  }, [form.artworkItems, pricingReady, settings, update]);
+
   const updateItem = (id: string, patch: Partial<ArtworkItem>) => update("artworkItems", form.artworkItems.map((item) => {
     if (item.id !== id) return item;
     const next = { ...item, ...patch };
@@ -165,9 +170,11 @@ function ResultCodeCard({ code }: { code: string }) {
 }
 
 function PublicArtworkItem({ item, index, settings, onChange, onRemove, removable }: { item: ArtworkItem; index: number; settings: StudioSettings; onChange: (patch: Partial<ArtworkItem>) => void; onRemove: () => void; removable: boolean }) {
-  const scopes = Array.from(new Set([...artScopeOptions, ...getAvailableScopes(settings), item.artScope]));
-  const finishes = Array.from(new Set([...finishLevelOptions, ...getAvailableFinishes(settings, item.artScope), item.finishLevel]));
-  const qSizes = Array.from(new Set([...qSizeOptions, ...getAvailableQSizes(settings), item.qSize ?? "2頭身"]));
+  const options = getPublicArtworkOptions(settings, item.artScope);
+  const scopes = options.scopes;
+  const activeScope = options.scope ?? item.artScope;
+  const finishes = options.finishes;
+  const qSizes = options.qSizes;
   const ordinal = index + 1 <= 9 ? chineseNumbers[index + 1] : String(index + 1);
   const [countText, setCountText] = useState(String(item.characterCount));
   useEffect(() => { setCountText(String(item.characterCount)); }, [item.characterCount]);
@@ -181,7 +188,7 @@ function PublicArtworkItem({ item, index, settings, onChange, onRemove, removabl
     setCountText(String(value));
     if (value !== item.characterCount) onChange({ characterCount: value });
   };
-  return <article className="rounded-2xl border border-[#d8ded5] bg-[#fffdfa] p-4"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><p className="font-display text-lg font-semibold text-[#355b48]">作畫項目 {ordinal}</p>{removable && <Button type="button" variant="ghost" size="sm" className="text-[#a9573c]" onClick={onRemove}><Trash2 className="mr-1 h-3.5 w-3.5" />移除此項</Button>}</div><div className="grid min-w-0 grid-cols-[5.75rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-4"><FormField label="人物數量"><Input type="number" inputMode="numeric" min="1" value={countText} onChange={(event) => updateCount(event.target.value)} onBlur={normalizeCount} /></FormField><FormField label="繪製範圍"><Select value={item.artScope} onValueChange={(value) => onChange({ artScope: value as ArtworkItem["artScope"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{scopes.map((scope) => <SelectItem key={scope} value={scope}>{scope}</SelectItem>)}</SelectContent></Select></FormField>{item.artScope === "Q版" ? <FormField label="Q版規格"><Select value={item.qSize ?? qSizes[0] ?? "2頭身"} onValueChange={(value) => onChange({ qSize: value as ArtworkItem["qSize"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{qSizes.map((size) => <SelectItem key={size} value={size}>{size}</SelectItem>)}</SelectContent></Select></FormField> : <FormField label="精緻度"><Select value={item.finishLevel} onValueChange={(value) => onChange({ finishLevel: value as ArtworkItem["finishLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{finishes.map((finish) => <SelectItem key={finish} value={finish}>{finish}</SelectItem>)}</SelectContent></Select></FormField>}</div><FormField label="備註" className="mt-4"><Textarea className="min-h-20" value={item.note} onChange={(event) => onChange({ note: event.target.value })} /></FormField></article>;
+  return <article className="rounded-2xl border border-[#d8ded5] bg-[#fffdfa] p-4"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><p className="font-display text-lg font-semibold text-[#355b48]">作畫項目 {ordinal}</p>{removable && <Button type="button" variant="ghost" size="sm" className="text-[#a9573c]" onClick={onRemove}><Trash2 className="mr-1 h-3.5 w-3.5" />移除此項</Button>}</div>{scopes.length ? <div className="grid min-w-0 grid-cols-[5.75rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-4"><FormField label="人物數量"><Input type="number" inputMode="numeric" min="1" value={countText} onChange={(event) => updateCount(event.target.value)} onBlur={normalizeCount} /></FormField><FormField label="繪製範圍"><Select value={activeScope} onValueChange={(value) => onChange({ artScope: value as ArtworkItem["artScope"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{scopes.map((scope) => <SelectItem key={scope} value={scope}>{scope}</SelectItem>)}</SelectContent></Select></FormField>{activeScope === "Q版" ? <FormField label="Q版規格"><Select value={item.qSize ?? qSizes[0]} onValueChange={(value) => onChange({ qSize: value as ArtworkItem["qSize"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{qSizes.map((size) => <SelectItem key={size} value={size}>{size}</SelectItem>)}</SelectContent></Select></FormField> : <FormField label="精緻度"><Select value={item.finishLevel} onValueChange={(value) => onChange({ finishLevel: value as ArtworkItem["finishLevel"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{finishes.map((finish) => <SelectItem key={finish} value={finish}>{finish}</SelectItem>)}</SelectContent></Select></FormField>}</div> : <p className="rounded-xl bg-[#fff7f1] px-3 py-2 text-sm text-[#8b5238]">尚未讀到可公開的已定價組合；請稍後再試，或請繪師登入一次同步丹青設案。</p>}<FormField label="備註" className="mt-4"><Textarea className="min-h-20" value={item.note} onChange={(event) => onChange({ note: event.target.value })} /></FormField></article>;
 }
 
 function FormField({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
