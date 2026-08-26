@@ -38,10 +38,10 @@ service cloud.firestore {
     }
 
     match /clientSubmissions/{submissionId} {
-      allow create: if request.auth != null
+      allow create: if isArtist() || (request.auth != null
         && request.resource.data.clientUid == request.auth.uid
         && request.resource.data.ownerUid == 'a9dFKJad7HUkHnZaNmF1cUTfZ583'
-        && request.resource.data.state == 'submitted';
+        && request.resource.data.state == 'submitted');
       allow read: if isArtist() || (request.auth != null && resource.data.clientUid == request.auth.uid);
       allow update, delete: if isArtist();
     }
