@@ -50,8 +50,8 @@ export function useTrash(user: User | null, isAllowed: boolean) {
   const moveToTrash = useCallback(async ({ kind, label, records }: { kind: TrashKind; label: string; records: TrashDocumentRecord[] }) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫。");
-    if (!records.length) throw new Error("找不到可移入垃圾桶的資料。");
-    if (records.length > 450) throw new Error("此刪除作業包含過多關聯資料，請分批處理。");
+    if (!records.length) throw new Error("找不到可置入落紙餘灰的資料。");
+    if (records.length > 450) throw new Error("此次置入落紙餘灰包含過多關聯資料，請分批處理。");
     const now = Date.now();
     const trashRef = doc(collection(db, "artists", user.uid, "trash"));
     const batch = writeBatch(db);
@@ -63,7 +63,7 @@ export function useTrash(user: User | null, isAllowed: boolean) {
   const restore = useCallback(async (item: TrashItem) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫。");
-    if (item.ownerUid !== user.uid) throw new Error("無法復原非本人垃圾桶中的資料。");
+    if (item.ownerUid !== user.uid) throw new Error("無法讓非本人落紙餘灰枯木逢春。");
     const batch = writeBatch(db);
     item.records.forEach((record) => batch.set(doc(db, record.path), record.data));
     batch.delete(doc(db, "artists", user.uid, "trash", item.id));

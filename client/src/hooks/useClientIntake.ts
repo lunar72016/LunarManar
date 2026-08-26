@@ -30,7 +30,7 @@ export function commissionFromClientSubmission(submission: ClientSubmission): Co
     privacyUntil: submission.privacyUntil ?? null,
     rushRequestedAt: submission.isRush ? submission.createdAt : null,
     estimatedPrice: submission.estimatedPrice ?? null,
-    sourceNote: `委託人公開填單 · ${submission.id}`,
+    sourceNote: `寄墨主公開填單 · ${submission.id}`,
   };
 }
 
@@ -48,7 +48,7 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
       setSubmissions(snapshot.docs.map((item) => hydrateClientSubmission(item.id, item.data() as ClientSubmission)).sort((a, b) => b.createdAt - a.createdAt));
       setLoading(false);
     }, (nextError) => {
-      setError(nextError.message.includes("permission-denied") ? "尚未發布委託人入口的 Firestore 規則。" : nextError.message);
+      setError(nextError.message.includes("permission-denied") ? "尚未發布寄墨主入口的 Firestore 規則。" : nextError.message);
       setLoading(false);
     });
   }, [isAllowed, user?.uid]);
@@ -69,7 +69,7 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
   const discardSubmission = useCallback(async (submissionId: string) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
-    if (!submissionId) throw new Error("委託函缺少文件識別碼，請重新整理後再刪除。");
+    if (!submissionId) throw new Error("墨諾函箋缺少文件識別碼，請重新整理後再置入落紙餘灰。");
     const removed = submissions.find((item) => item.id === submissionId);
     setSubmissions((current) => current.filter((item) => item.id !== submissionId));
     try {
@@ -81,7 +81,7 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     } catch (error) {
       if (removed) setSubmissions((current) => current.some((item) => item.id === removed.id) ? current : [...current, removed].sort((a, b) => b.createdAt - a.createdAt));
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("permission-denied") || message.includes("insufficient permissions")) throw new Error("Firebase 未允許繪師刪除委託函。請在 Firebase Console 發布最新版 firestore.rules 後再試。");
+      if (message.includes("permission-denied") || message.includes("insufficient permissions")) throw new Error("Firebase 未允許繪師將墨諾函箋置入落紙餘灰。請在 Firebase Console 發布最新版 firestore.rules 後再試。");
       throw error;
     }
   }, [submissions, user?.uid]);
@@ -120,10 +120,10 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
     let access: Pick<ClientProgress, "id" | "accessMode" | "clientUid" | "accessCode" | "ownerUid">;
     if (input.accessMode === "google") {
       const email = input.clientEmail?.trim().toLowerCase();
-      if (!email) throw new Error("請輸入委託人已使用 Google 登入的電子郵件。");
+      if (!email) throw new Error("請輸入寄墨主已使用 Google 登入的電子郵件。");
       const profiles = await getDocs(query(collection(db, "clientProfiles"), where("email", "==", email), limit(1)));
       const profile = profiles.docs[0]?.data() as { uid?: string } | undefined;
-      if (!profile?.uid) throw new Error("尚未找到此 Google 帳號。請委託人先在公開入口使用 Google 帳號登入一次。");
+      if (!profile?.uid) throw new Error("尚未找到此 Google 帳號。請寄墨主先在公開入口使用 Google 帳號登入一次。");
       access = { id: commission.id, accessMode: "google", clientUid: profile.uid, accessCode: null, ownerUid: user.uid };
     } else {
       return getOrCreateCodeProgress(commission);

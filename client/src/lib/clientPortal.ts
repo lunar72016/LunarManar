@@ -186,7 +186,7 @@ export function buildPendingClientProgress(access: Pick<ClientProgress, "id" | "
   };
 }
 
-/** 將委託人提供的雲端連結正規化；只接受 http／https，且去除重複與空白。 */
+/** 將寄墨主提供的雲端連結正規化；只接受 http／https，且去除重複與空白。 */
 export function normalizeReferenceUrls(value: string) {
   return Array.from(new Set(value.split(/[\n,\s]+/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item))));
 }

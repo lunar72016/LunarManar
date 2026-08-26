@@ -54,13 +54,13 @@ export default function StudioSettingsPage({ user, settings, loading, saving, ba
     }
   };
   const purgeDeletedData = async () => {
-    if (!window.confirm("這會永久刪除沒有對應正式畫約的已受理委託函與公開進度。仍在待啟墨函、現有畫約、封存畫約都不會受到影響。是否繼續？")) return;
-    if (!window.confirm("此操作無法復原。請再次確認要清理測試殘留資料。")) return;
+    if (!window.confirm("這會讓沒有對應正式畫約的已受理墨諾函箋與公開進度灰飛煙滅。待啟墨函、現有畫約、封畫入卷均不受影響。是否繼續？")) return;
+    if (!window.confirm("此操作無法枯木逢春。請再次確認要清理測試殘留資料。")) return;
     try {
       const result = await onPurgeDeletedData();
       toast.success(result.submissions || result.progress ? `已清理 ${result.submissions} 封函件與 ${result.progress} 份公開進度` : "沒有找到可清理的測試殘留資料");
     } catch (cleanupError) {
-      toast.error("清理資料失敗", { description: cleanupError instanceof Error ? cleanupError.message : "請確認 Firebase 規則與網路後再試。" });
+      toast.error("灰飛煙滅未竟", { description: cleanupError instanceof Error ? cleanupError.message : "請確認 Firebase 規則與網路後再試。" });
     }
   };
   const backup = async () => {
@@ -123,8 +123,8 @@ export default function StudioSettingsPage({ user, settings, loading, saving, ba
         <Button type="button" variant="outline" disabled={backingUp} className="border-[#b9cdbd] text-[#355b48] hover:bg-[#edf5ed]" onClick={() => void backup()}>{backingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}{backingUp ? "整理備份中…" : "下載本機 JSON 備份"}</Button>
       </Panel>
 
-      <Panel icon={<Trash2 />} title="清理測試殘留資料" description="僅清除已不存在正式畫約的已受理函件與公開進度；待啟墨函、現有與封存畫約均會保留。">
-        <Button type="button" variant="outline" disabled={purging} className="border-[#bc694c] text-[#a9573c] hover:bg-[#fff0e9]" onClick={() => void purgeDeletedData()}>{purging ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}{purging ? "清理中…" : "永久清理已刪除測試資料"}</Button>
+      <Panel icon={<Trash2 />} title="試墨餘灰清理" description="僅讓不存在正式畫約的已受理墨諾函箋與公開進度灰飛煙滅；待啟墨函、現有畫約與封畫入卷均會保留。">
+        <Button type="button" variant="outline" disabled={purging} className="border-[#bc694c] text-[#a9573c] hover:bg-[#fff0e9]" onClick={() => void purgeDeletedData()}>{purging ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}{purging ? "化灰中…" : "灰飛煙滅試墨餘灰"}</Button>
       </Panel>
     </div>
   </main>;

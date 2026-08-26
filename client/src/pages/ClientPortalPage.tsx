@@ -65,7 +65,7 @@ function readableFirebaseError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes("auth/")) return describeFirebaseAuthError(error);
   if (message.includes("auth/operation-not-allowed")) return "此登入方式尚未啟用。請通知繪師於 Firebase Authentication 開啟 Google 或 Anonymous Provider。";
-  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "資料庫尚未套用委託人入口規則，請通知繪師在 Firebase Console 發布最新版 firestore.rules 後再試。";
+  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "資料庫尚未套用寄墨主入口規則，請通知繪師在 Firebase Console 發布最新版 firestore.rules 後再試。";
   return "目前無法完成操作，請確認網路後再試。";
 }
 

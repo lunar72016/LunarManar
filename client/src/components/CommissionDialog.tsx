@@ -106,7 +106,7 @@ export function CommissionDialog({ commission, open, onOpenChange, onSave, setti
   const changeDeliveryPreference = (value: Commission["deliveryPreference"]) => setDraft((current) => value === "unspecified" ? recalculate({ ...current, deliveryPreference: value, dueDate: null, isRush: false, rushRequestedAt: null }, true) : { ...current, deliveryPreference: value, rushRequestedAt: current.rushRequestedAt ?? Date.now() });
   const redetectRush = () => setDraft((current) => detectRush(current, current.dueDate, current.rushRequestedAt ?? Date.now()));
   const submit = async () => {
-    if (!draft.clientName.trim()) { setSaveError("請填寫委託人姓名後再儲存畫約。"); return; }
+    if (!draft.clientName.trim()) { setSaveError("請填寫寄墨主姓名後再儲存畫約。"); return; }
     setSaving(true);
     setSaveError(null);
     try {

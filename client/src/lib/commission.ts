@@ -66,7 +66,7 @@ export type Commission = {
   rushMultiplier: number | null;
   deliveryPreference: DeliveryPreference;
   dueDate: number | null;
-  /** 委託人提出加急的實際日期；此日作為固定的急件層級判定基準。 */
+  /** 寄墨主提出加急的實際日期；此日作為固定的急件層級判定基準。 */
   rushRequestedAt: number | null;
   privacyMode: PrivacyMode;
   privacyUntil: number | null;
@@ -100,7 +100,7 @@ export type Commission = {
   completedAt: number | null;
   /** 封存案件保留於資料庫，但不再納入工作台與排單。 */
   archivedAt: number | null;
-  /** 封存前的進度，用於重新啟用時回復原本流程。 */
+  /** 封存前的進度，用於重啟畫約時回歸原本流程。 */
   archivedFromStatus: Exclude<CommissionStatus, "archived"> | null;
   /** Reserved for the future public client form and progress portal. */
   clientPortal: { enabled: boolean; accessTokenHash: string | null; expiresAt: number | null; referenceFiles: string[] };
@@ -402,7 +402,7 @@ export function getQueuePositionShifts(items: Commission[], month: string, posit
 export function displayPrice(commission: Commission) { return commission.depositText || commission.finalPriceText ? `${commission.depositText || formatCurrency(commission.depositAmount)}/${commission.finalPriceText || formatCurrency(commission.finalPrice)}` : commission.basePriceText || formatCurrency(commission.basePriceMin); }
 export function formatDateTime(value: number | null | undefined) { return !value ? "尚未記錄" : new Intl.DateTimeFormat("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(value); }
 export function withStatusTransition(commission: Commission, nextStatus: CommissionStatus, note?: string, at = Date.now()) { return { ...commission, status: nextStatus, statusHistory: [...(commission.statusHistory ?? []), { status: nextStatus, at, ...(note ? { note } : {}) }], completedAt: nextStatus === "completed" ? at : nextStatus === "archived" ? commission.completedAt : null, archivedAt: nextStatus === "archived" ? at : null, archivedFromStatus: nextStatus === "archived" ? (commission.status === "archived" ? commission.archivedFromStatus : commission.status) : null, updatedAt: at }; }
-export function archiveCommission(commission: Commission, note = "委託人未回覆，暫時封存留存紀錄。", at = Date.now()) { return commission.status === "archived" ? commission : withStatusTransition(commission, "archived", note, at); }
+export function archiveCommission(commission: Commission, note = "寄墨主未回覆，暫時封畫入卷以留存紀錄。", at = Date.now()) { return commission.status === "archived" ? commission : withStatusTransition(commission, "archived", note, at); }
 export function restoreArchivedCommission(commission: Commission, note = "重新啟用封存案件。", at = Date.now()) { if (commission.status !== "archived") return commission; return withStatusTransition({ ...commission, archivedAt: null, archivedFromStatus: null }, commission.archivedFromStatus ?? "inquiry", note, at); }
 export function filterArchivedCommissions(items: Commission[], query = "", stage: "all" | Exclude<CommissionStatus, "archived"> = "all") {
   const keyword = query.trim().toLowerCase();
