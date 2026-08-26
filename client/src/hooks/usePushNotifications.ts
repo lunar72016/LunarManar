@@ -1,11 +1,21 @@
 import { firebaseApp, firebaseMessagingConfigured, firestoreDb } from "@/lib/firebase";
+import { getForegroundIntakeMessage, type ForegroundIntakeMessage } from "@/lib/foregroundPush";
+import { syncPwaBadge } from "@/lib/pwaBadge";
 import { getWorkspaceIntakeUrl } from "@/lib/pushNotifications";
 import { User } from "firebase/auth";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { useCallback, useEffect, useState } from "react";
 
-type PushState = "checking" | "ready" | "enabled" | "unsupported" | "needs-vapid" | "denied" | "error";
+export type PushState = "checking" | "ready" | "enabled" | "unsupported" | "needs-vapid" | "denied" | "error";
+export type PushNotificationsController = {
+  state: PushState;
+  busy: boolean;
+  error: string | null;
+  enable: () => Promise<void>;
+  disable: () => Promise<void>;
+  intakeUrl: string;
+};
 const deviceStorageKey = (uid: string) => `hui-yue-push-device:${uid}`;
 
 async function createDeviceId(token: string) {
@@ -13,7 +23,25 @@ async function createDeviceId(token: string) {
   return Array.from(new Uint8Array(digest)).slice(0, 16).map((item) => item.toString(16).padStart(2, "0")).join("");
 }
 
-export function usePushNotifications(user: User | null) {
+function showForegroundNotification(message: ForegroundIntakeMessage, intakeUrl: string) {
+  if (message.type !== "new-intake" || Notification.permission !== "granted") return;
+  try {
+    const notification = new Notification(message.title, {
+      body: message.body,
+      icon: `${import.meta.env.BASE_URL}hui-yue-title.svg`,
+      tag: "hui-yue-new-intake",
+    });
+    notification.onclick = () => {
+      window.focus();
+      window.location.assign(intakeUrl);
+      notification.close();
+    };
+  } catch {
+    // 部分行動瀏覽器不允許頁面直接顯示 Notification，仍以工作台 toast 告知。
+  }
+}
+
+export function usePushNotifications(user: User | null, options?: { onForegroundIntake?: (message: ForegroundIntakeMessage) => void }): PushNotificationsController {
   const [state, setState] = useState<PushState>("checking");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +62,46 @@ export function usePushNotifications(user: User | null) {
   }, [user?.uid]);
 
   useEffect(() => {
-    if (!firebaseApp || (state !== "ready" && state !== "enabled")) return;
-    return onMessage(getMessaging(firebaseApp), () => {
-      // 前景中的工作台由 Firestore 即時更新待啟數量；背景訊息則由 service worker 顯示。
-      window.dispatchEvent(new CustomEvent("hui-yue-push-received"));
+    if (!firebaseApp || state !== "enabled") return;
+    const intakeUrl = getWorkspaceIntakeUrl(window.location.origin, import.meta.env.BASE_URL);
+    return onMessage(getMessaging(firebaseApp), (payload) => {
+      const message = getForegroundIntakeMessage(payload);
+      if (!message) return;
+      void syncPwaBadge(navigator, message.pendingCount);
+      showForegroundNotification(message, intakeUrl);
+      if (message.type === "new-intake") options?.onForegroundIntake?.(message);
+      window.dispatchEvent(new CustomEvent("hui-yue-push-received", { detail: message }));
     });
-  }, [state]);
+  }, [options?.onForegroundIntake, state]);
+
+  useEffect(() => {
+    if (!user || !firebaseApp || !firestoreDb || state !== "enabled" || Notification.permission !== "granted") return;
+    let active = true;
+    void (async () => {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const token = await getToken(getMessaging(firebaseApp), { vapidKey: import.meta.env.VITE_FIREBASE_MESSAGING_VAPID_KEY, serviceWorkerRegistration: registration });
+        if (!token) throw new Error("裝置推播識別碼已失效。");
+        const deviceId = await createDeviceId(token);
+        if (!active) return;
+        const previousDeviceId = localStorage.getItem(deviceStorageKey(user.uid));
+        await setDoc(doc(firestoreDb, "artists", user.uid, "notificationDevices", deviceId), {
+          token,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          platform: navigator.userAgent.slice(0, 180),
+        }, { merge: true });
+        if (previousDeviceId && previousDeviceId !== deviceId) await deleteDoc(doc(firestoreDb, "artists", user.uid, "notificationDevices", previousDeviceId)).catch(() => undefined);
+        localStorage.setItem(deviceStorageKey(user.uid), deviceId);
+      } catch {
+        if (!active) return;
+        localStorage.removeItem(deviceStorageKey(user.uid));
+        setState("ready");
+        setError("裝置推播識別碼已更新，請重新開啟這台裝置通知。");
+      }
+    })();
+    return () => { active = false; };
+  }, [state, user?.uid]);
 
   const enable = useCallback(async () => {
     if (!user || !firebaseApp || !firestoreDb) throw new Error("目前無法連接 Firebase 推播服務。");

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import type { PushNotificationsController } from "@/hooks/usePushNotifications";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { artScopeOptions, finishLevelOptions, qSizeOptions, rushLevelOptions, type ArtScope, type FinishLevel, type LicenseOption } from "@/lib/commission";
@@ -9,17 +9,16 @@ import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { toast } from "sonner";
 
-type Props = { user: User | null; settings: StudioSettings; loading: boolean; saving: boolean; backingUp: boolean; purging: boolean; error: string | null; onSave: (settings: StudioSettings) => Promise<void>; onBackup: () => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
+type Props = { user: User | null; settings: StudioSettings; loading: boolean; saving: boolean; backingUp: boolean; purging: boolean; error: string | null; push: PushNotificationsController; onSave: (settings: StudioSettings) => Promise<void>; onBackup: () => Promise<void>; onPurgeDeletedData: () => Promise<{ submissions: number; progress: number }> };
 const labels = { commercial: "商用", promotion: "宣傳", buyout: "買斷" } as const;
 const money = (value: string) => { const n = Number(value); return value.trim() && n > 0 && Number.isFinite(n) ? n : null; };
 const multiplier = (value: string, fallback: number) => { const n = Number(value); return n >= 1 && Number.isFinite(n) ? n : fallback; };
 
-export default function StudioSettingsPage({ user, settings, loading, saving, backingUp, purging, error, onSave, onBackup, onPurgeDeletedData }: Props) {
+export default function StudioSettingsPage({ user, settings, loading, saving, backingUp, purging, error, push, onSave, onBackup, onPurgeDeletedData }: Props) {
   const [draft, setDraft] = useState(() => normalizeStudioSettings(settings));
   const [scope, setScope] = useState<ArtScope>(artScopeOptions[0]);
   const [finish, setFinish] = useState<FinishLevel>(finishLevelOptions[0]);
   const [newPrice, setNewPrice] = useState("");
-  const push = usePushNotifications(user);
 
   useEffect(() => setDraft(normalizeStudioSettings(settings)), [settings]);
 

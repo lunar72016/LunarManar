@@ -15,6 +15,7 @@ import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { useCommissions } from "@/hooks/useCommissions";
 import { commissionFromClientSubmission, useClientIntake } from "@/hooks/useClientIntake";
 import { useStudioSettings } from "@/hooks/useStudioSettings";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Commission, CommissionStatus, PendingPaymentCommission, applyAutomaticPricing, filterArchivedCommissions, formatCurrency, getDefaultScheduleWeekStart, getLastQueuedWeek, getPendingPaymentCommissions, groupQueuedCommissionsByMonth, monthLabel, prioritizeRecentCommissions, sortCommissionsForSchedule, statusMeta } from "@/lib/commission";
 import StudioSettingsPage from "@/pages/StudioSettingsPage";
 import ClientPortalPage from "@/pages/ClientPortalPage";
@@ -24,7 +25,7 @@ import { groupCompletedCommissionsByYearMonth } from "@/lib/completedArchive";
 import { createWorkspaceBackup, downloadWorkspaceBackup } from "@/lib/workspaceBackup";
 import { syncPwaBadge } from "@/lib/pwaBadge";
 import { ArchiveRestore, BadgePlus, CalendarClock, ChevronDown, ChevronRight, CircleDollarSign, CloudOff, FolderKanban, Inbox, KeyRound, LockKeyhole, LogIn, Search, Sparkles, Trash2, WalletCards } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
 
@@ -58,6 +59,13 @@ function CommissionWorkspace() {
   const [backingUp, setBackingUp] = useState(false);
   const [purging, setPurging] = useState(false);
   const publicProgressSyncSignature = useRef("");
+  const onForegroundIntake = useCallback((message: import("@/lib/foregroundPush").ForegroundIntakeMessage) => {
+    toast("新待啟墨函", {
+      description: message.pendingCount > 0 ? `目前有 ${message.pendingCount} 封等待啟讀。` : "有新的墨諾函箋等待啟讀。",
+      action: { label: "前往查看", onClick: () => setActiveView("intake") },
+    });
+  }, []);
+  const push = usePushNotifications(user, { onForegroundIntake });
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -194,7 +202,7 @@ function CommissionWorkspace() {
   const heading = activeView === "dashboard" ? "運筆宮商" : activeView === "board" ? "排畫連雲" : activeView === "archive" ? "封畫入卷" : activeView === "intake" ? "墨諾函箋" : "丹青設案";
 
   return <TooltipProvider><Toaster richColors position="top-right" /><DashboardLayout activeView={activeView} onViewChange={setActiveView} syncState={syncState} studioName={studio.settings.studioName} pendingIntakeCount={pendingIntakeCount}>
-    {activeView === "settings" ? <StudioSettingsPage user={user} settings={studio.settings} loading={studio.loading} saving={studio.saving} backingUp={backingUp} purging={purging} error={studio.error} onSave={studio.saveSettings} onBackup={backupWorkspace} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
+    {activeView === "settings" ? <StudioSettingsPage user={user} settings={studio.settings} loading={studio.loading} saving={studio.saving} backingUp={backingUp} purging={purging} error={studio.error} push={push} onSave={studio.saveSettings} onBackup={backupWorkspace} onPurgeDeletedData={purgeDeletedData} /> : <main className="min-h-[calc(100vh-70px)] bg-[#fffdfa] px-4 py-5 sm:px-7 sm:py-7">
       {error && <div className="mb-5 rounded-2xl border border-[#bc694c] bg-[#fff0e9] px-4 py-3 text-sm text-[#8e4932]">Firebase 資料同步提示：{error}</div>}
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#283b31]">{heading}</p><p className="mt-2 text-sm text-[#456153]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>
@@ -225,7 +233,7 @@ function ClientIntakeView({ submissions, loading, error, onAccept, onDiscard }: 
 }
 
 function DashboardView({ summary, commissions, pendingPayments, onView, onAdvance }: { summary: { total: number; reservations: number; sketching: number; finalizing: number; awaiting: number; awaitingAmount: number; income: number }; commissions: Commission[]; pendingPayments: PendingPaymentCommission[]; onView: (commission: Commission) => void; onAdvance: (commission: Commission, next: CommissionStatus) => void }) {
-  const priority = prioritizeRecentCommissions(commissions.filter((commission) => commission.status !== "completed")).slice(0, 4);
+  const priority = prioritizeRecentCommissions(commissions.filter((commission) => commission.status !== "completed")).slice(0, 8);
   return <div className="space-y-6">
     <section className="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)]">
       <SummaryGroup title="筆墨進程" detail={summary.reservations ? `候筆繪列另有 ${summary.reservations} 張預約` : "候筆繪列的目前節奏"} icon={<FolderKanban className="h-4 w-4" />}>
@@ -236,7 +244,7 @@ function DashboardView({ summary, commissions, pendingPayments, onView, onAdvanc
       </SummaryGroup>
     </section>
     {pendingPayments.length > 0 && <PendingPaymentShelf payments={pendingPayments} onView={onView} />}
-    <section className="rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.07)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">近案墨痕</h2><p className="mt-1 text-sm text-[#456153]">加急或期限在前的畫約會優先置頂並以暖色標記；預約單不列入此處。</p></div><Sparkles className="h-5 w-5 text-[#6c9575]" /></div>{priority.length ? <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onView={onView} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section>
+    <section className="rounded-[1.5rem] border border-[#cfd9cf] bg-[#fffdfa] p-5 shadow-[0_10px_35px_rgba(40,59,49,.07)] sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-display text-2xl font-semibold text-[#283b31]">近案墨痕</h2><p className="mt-1 text-sm text-[#456153]">最多顯示八張；加急或期限在前的畫約會優先置頂並以暖色標記，預約單不列入此處。</p></div><Sparkles className="h-5 w-5 text-[#6c9575]" /></div>{priority.length ? <div className="mt-5 grid gap-4 md:grid-cols-2">{priority.map((commission) => <CommissionCard commission={commission} key={commission.id} onView={onView} onAdvance={onAdvance} />)}</div> : <EmptyState />}</section>
   </div>;
 }
 
