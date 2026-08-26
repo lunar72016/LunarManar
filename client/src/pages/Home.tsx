@@ -140,9 +140,9 @@ function CommissionWorkspace() {
     try {
       const related = await intake.getCommissionTrashRecords(commission.id);
       await trash.moveToTrash({ kind: "commission", label: commission.clientName, records: [{ path: `artists/${user?.uid}/commissions/${commission.id}`, data: commission as unknown as Record<string, unknown> }, ...related] });
-      toast.success(`已將「${commission.clientName}」移入落紙餘灰`, { description: "可在 7 日內枯木逢春；到期後將灰飛煙滅。" });
+      toast.success(`已將「${commission.clientName}」化為落紙餘灰`, { description: "可在 7 日內枯木逢春；到期後將灰飛煙滅。" });
     } catch (deleteError) {
-      toast.error("移入落紙餘灰時發生問題", { description: deleteError instanceof Error ? deleteError.message : "請稍後再試" });
+      toast.error("化為落紙餘灰時發生問題", { description: deleteError instanceof Error ? deleteError.message : "請稍後再試" });
       throw deleteError;
     }
   };
@@ -191,13 +191,13 @@ function CommissionWorkspace() {
     setDialogOpen(true);
   };
   const discardSubmission = async (submission: import("@/lib/clientPortal").ClientSubmission) => {
-    if (!window.confirm(`確定要將「${submission.clientName}」的待啟墨函移入落紙餘灰嗎？可在 7 日內枯木逢春。`)) return;
+    if (!window.confirm(`確定要將「${submission.clientName}」的待啟墨函化為落紙餘灰嗎？可在 7 日內枯木逢春。`)) return;
     try {
       const records = await intake.getSubmissionTrashRecords(submission.id);
       await trash.moveToTrash({ kind: "submission", label: submission.clientName, records });
-      toast.success("已移入落紙餘灰", { description: "可在 7 日內枯木逢春；到期後將灰飛煙滅。" });
+      toast.success("已化為落紙餘灰", { description: "可在 7 日內枯木逢春；到期後將灰飛煙滅。" });
     } catch (discardError) {
-      toast.error("置入落紙餘灰時發生問題", { description: discardError instanceof Error ? discardError.message : "請稍後再試" });
+      toast.error("化為落紙餘灰時發生問題", { description: discardError instanceof Error ? discardError.message : "請稍後再試" });
     }
   };
 
@@ -211,7 +211,7 @@ function CommissionWorkspace() {
         <div><p className="font-display text-3xl font-semibold tracking-tight text-[#283b31]">{heading}</p><p className="mt-2 text-sm text-[#456153]">每一筆約稿與收款皆收錄於此；離線時亦可先安放在此方畫案。</p></div>
         <div className="flex flex-wrap gap-2"><div className="relative min-w-[220px] flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#456153]" /><Input value={activeView === "archive" ? archiveSearch : search} onChange={(event) => { if (activeView === "archive") { setArchiveSearch(event.target.value); setArchiveLimit(12); } else setSearch(event.target.value); }} className="border-[#cfd9cf] bg-[#fffdfa] pl-9" placeholder={activeView === "archive" ? "搜尋入卷案件、單號或需求" : "搜尋寄墨主、範圍或精緻度"} /></div></div>
       </div>
-      {activeView === "intake" ? <ClientIntakeView submissions={intake.submissions} loading={intake.loading} error={intake.error} onAccept={acceptSubmission} onDiscard={discardSubmission} /> : activeView === "trash" ? <TrashView items={trash.items} error={trash.error} onRestore={async (item) => { await trash.restore(item); toast.success(`「${item.label}」已枯木逢春`); }} onDelete={async (item) => { if (!window.confirm(`確定要讓「${item.label}」灰飛煙滅嗎？此操作無法枯木逢春。`)) return; await trash.permanentlyDelete(item); toast.success("此項落紙餘灰已灰飛煙滅"); }} /> : commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered.filter((commission) => commission.status !== "archived")} pendingPayments={pendingPayments} onView={openView} onAdvance={advance} /> : activeView === "archive" ? <ArchivedView commissions={archivedMatches.slice(0, archiveLimit)} total={archivedMatches.length} stage={archiveStage} pageSize={archiveLimit} hasMore={archivedMatches.length > archiveLimit} onStageChange={(value) => { setArchiveStage(value); setArchiveLimit(12); }} onPageSizeChange={(value) => setArchiveLimit(value)} onLoadMore={() => setArchiveLimit((current) => current + 12)} onView={openView} /> : <BoardView months={boardGroups.months} rush={boardGroups.rush} reservations={boardGroups.reservations} completed={boardGroups.completed} onView={openView} />}
+      {activeView === "intake" ? <ClientIntakeView submissions={intake.submissions} loading={intake.loading} error={intake.error} onAccept={acceptSubmission} onDiscard={discardSubmission} /> : activeView === "trash" ? <TrashView items={trash.items} error={trash.error} onRestore={async (item) => { await trash.restore(item); toast.success(`「${item.label}」已枯木逢春`); }} onDelete={async (item) => { if (!window.confirm(`確定要讓「${item.label}」灰飛煙滅嗎？此操作無法枯木逢春。`)) return; await trash.permanentlyDelete(item); toast.success("此落紙餘灰已灰飛煙滅"); }} /> : commissions.length === 0 && syncState !== "loading" ? <InitialImport onImport={() => void importRecords()} loading={importing} /> : activeView === "dashboard" ? <DashboardView summary={summary} commissions={filtered.filter((commission) => commission.status !== "archived")} pendingPayments={pendingPayments} onView={openView} onAdvance={advance} /> : activeView === "archive" ? <ArchivedView commissions={archivedMatches.slice(0, archiveLimit)} total={archivedMatches.length} stage={archiveStage} pageSize={archiveLimit} hasMore={archivedMatches.length > archiveLimit} onStageChange={(value) => { setArchiveStage(value); setArchiveLimit(12); }} onPageSizeChange={(value) => setArchiveLimit(value)} onLoadMore={() => setArchiveLimit((current) => current + 12)} onView={openView} /> : <BoardView months={boardGroups.months} rush={boardGroups.rush} reservations={boardGroups.reservations} completed={boardGroups.completed} onView={openView} />}
     </main>}
     {activeView !== "settings" && <Button className="fixed bottom-6 right-5 z-30 rounded-full bg-[#1f382c] px-5 text-[#d4a359] shadow-[0_12px_28px_rgba(31,56,44,.28)] hover:bg-[#283b31] hover:text-[#f4cf8d] sm:bottom-8 sm:right-8" onClick={openNew}><BadgePlus className="mr-1.5 h-4 w-4" />寫畫起約</Button>}
     <CommissionDialog commission={selected} open={dialogOpen} onOpenChange={setDialogOpen} onSave={saveCommission} settings={studio.settings} defaultScheduleWeekStart={defaultScheduleWeekStart} lastQueuedWeek={lastQueuedWeek} />
