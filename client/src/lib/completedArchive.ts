@@ -1,10 +1,14 @@
 import type { Commission } from "@/lib/commission";
 
-export type CompletedArchiveMonth = { key: string; label: string; commissions: Commission[] };
-export type CompletedArchiveYear = { year: string; months: CompletedArchiveMonth[] };
+export type CompletedArchiveMonth = { key: string; label: string; commissions: Commission[]; totalAmount: number };
+export type CompletedArchiveYear = { year: string; months: CompletedArchiveMonth[]; totalAmount: number };
 
 function completedTimestamp(commission: Commission) {
   return commission.completedAt ?? commission.updatedAt;
+}
+
+function totalCompletedAmount(commissions: Commission[]) {
+  return commissions.reduce((total, commission) => total + (commission.totalAmount ?? 0), 0);
 }
 
 export function groupCompletedCommissionsByYearMonth(commissions: Commission[]): CompletedArchiveYear[] {
@@ -17,7 +21,7 @@ export function groupCompletedCommissionsByYearMonth(commissions: Commission[]):
   const years = new Map<string, CompletedArchiveMonth[]>();
   Array.from(months.entries()).sort(([a], [b]) => b.localeCompare(a)).forEach(([key, grouped]) => {
     const [year, month] = key.split("-");
-    years.set(year, [...(years.get(year) ?? []), { key, label: `${Number(month)}月`, commissions: grouped }]);
+    years.set(year, [...(years.get(year) ?? []), { key, label: `${Number(month)}月`, commissions: grouped, totalAmount: totalCompletedAmount(grouped) }]);
   });
-  return Array.from(years.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([year, grouped]) => ({ year, months: grouped }));
+  return Array.from(years.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([year, grouped]) => ({ year, months: grouped, totalAmount: grouped.reduce((total, month) => total + month.totalAmount, 0) }));
 }
