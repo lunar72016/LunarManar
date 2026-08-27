@@ -285,6 +285,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
             onGoogle={useGoogle}
             onSignOut={() => void signOut()}
             resultCode={resultCode}
+            onCloseResult={() => setResultCode(null)}
           />
         ) : (
           <ClientProgressPanel

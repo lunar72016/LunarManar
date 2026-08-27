@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,6 +54,7 @@ type PublicFormProps = {
   onGoogle: () => Promise<void>;
   onSignOut: () => void;
   resultCode: string | null;
+  onCloseResult: () => void;
 };
 
 const chineseNumbers = ["", "壹", "貳", "參", "肆", "伍", "陸", "柒", "捌", "玖"];
@@ -62,7 +64,7 @@ function publicArtworkItem(settings: StudioSettings): ArtworkItem {
   return normalizePublicArtworkItem(settings) ?? createArtworkItem();
 }
 
-export function PublicSubmissionForm({ form, settings, pricingReady, previewAmount, previewMultiplier, update, onSubmit, submitting, loading, signedInWithGoogle, accountEmail, queueWeekLabel, onGoogle, onSignOut, resultCode }: PublicFormProps) {
+export function PublicSubmissionForm({ form, settings, pricingReady, previewAmount, previewMultiplier, update, onSubmit, submitting, loading, signedInWithGoogle, accountEmail, queueWeekLabel, onGoogle, onSignOut, resultCode, onCloseResult }: PublicFormProps) {
   useEffect(() => {
     if (!pricingReady) return;
     const normalized = form.artworkItems.map((item) => normalizePublicArtworkItem(settings, item)).filter((item): item is ArtworkItem => Boolean(item));
@@ -143,7 +145,7 @@ export function PublicSubmissionForm({ form, settings, pricingReady, previewAmou
         <p className="max-w-md text-xs leading-5 text-[#6c7e70]"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" />未使用 Google 帳號時，系統會建立受限工作階段並提供對契符節；請妥善保存。</p>
         <Button disabled={submitting || loading || !form.artworkItems.length || !form.termsAccepted} className="bg-[#355b48] text-[#fffdfa] hover:bg-[#294a3a]" onClick={() => void onSubmit()}>{submitting && <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin" />}{submitting ? "寄出中…" : "寄出墨諾函箋"}</Button>
       </div>
-      {resultCode && <ResultCodeCard code={resultCode} />}
+      <SubmissionCompleteDialog code={resultCode} onClose={onCloseResult} />
     </section>
   );
 }
@@ -160,13 +162,14 @@ function PublicDatePicker({ value, onChange, required = false }: { value: string
   return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><Button type="button" variant="outline" className={`h-10 w-full justify-start border-[#cfd9cf] bg-[#fffdfa] px-3 text-left font-normal hover:bg-[#f4f8f3] ${value ? "text-[#355b48]" : "text-[#6c7e70]"}`}><CalendarDays className="mr-2 h-4 w-4 shrink-0 text-[#6c9575]" /><span>{formatPortalDateInput(value)}</span>{required && <span className="sr-only">必填</span>}</Button></PopoverTrigger><PopoverContent align="start" className="w-auto border-[#cfd9cf] bg-[#fffdfa] p-0"><Calendar mode="single" locale={zhTW} selected={selected} onSelect={selectDate} defaultMonth={selected ?? new Date()} initialFocus /></PopoverContent></Popover>;
 }
 
-function ResultCodeCard({ code }: { code: string }) {
+function SubmissionCompleteDialog({ code, onClose }: { code: string | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const copyCode = async () => {
+    if (!code) return;
     try { await navigator.clipboard.writeText(code); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
     catch { setCopied(false); }
   };
-  return <div className="mt-5 rounded-2xl border border-[#b9cdbd] bg-[#edf5ed] p-4"><p className="flex items-center gap-2 font-semibold text-[#283b31]"><CheckCircle2 className="h-5 w-5 text-[#3e6c50]" />墨諾函箋已送達</p><p className="mt-2 text-sm text-[#456153]">請保存此對契符節。繪師建立畫約後，可用它檢視遞臻：</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><code className="min-w-0 flex-1 break-all rounded-xl bg-[#fffdfa] px-3 py-2 text-sm font-semibold text-[#283b31]">{code}</code><Button type="button" variant="outline" className="shrink-0 border-[#9bb7a0] text-[#355b48]" onClick={() => void copyCode()}>{copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}{copied ? "已複製" : "複製對契符節"}</Button></div></div>;
+  return <Dialog open={Boolean(code)} onOpenChange={(open) => { if (!open) onClose(); }}><DialogContent className="border-[#b9cdbd] bg-[#fffdfa] p-6 sm:max-w-md" showCloseButton={false}><DialogHeader className="items-center text-center"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#edf5ed]"><CheckCircle2 className="h-7 w-7 text-[#3e6c50]" /></div><DialogTitle className="font-display text-2xl text-[#283b31]">墨諾函箋已送達</DialogTitle><DialogDescription className="leading-6 text-[#456153]">您的委託內容已妥善收錄。請先複製並保存對契符節，日後可用它檢視遞臻。</DialogDescription></DialogHeader><section className="rounded-2xl border border-[#b9cdbd] bg-[#edf5ed] p-4"><p className="text-xs font-semibold tracking-[.1em] text-[#456153]">對契符節</p><code className="mt-2 block break-all rounded-xl bg-[#fffdfa] px-3 py-2.5 text-sm font-semibold text-[#283b31]">{code}</code><Button type="button" variant="outline" className="mt-3 w-full border-[#9bb7a0] bg-[#fffdfa] text-[#355b48] hover:bg-[#f4f8f3]" onClick={() => void copyCode()}>{copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}{copied ? "已複製對契符節" : "複製對契符節"}</Button></section><DialogFooter><Button type="button" className="w-full bg-[#355b48] text-[#fffdfa] hover:bg-[#294a3a] sm:w-auto" onClick={onClose}>我已保存</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function PublicArtworkItem({ item, index, settings, onChange, onRemove, removable }: { item: ArtworkItem; index: number; settings: StudioSettings; onChange: (patch: Partial<ArtworkItem>) => void; onRemove: () => void; removable: boolean }) {
