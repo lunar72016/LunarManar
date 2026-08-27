@@ -8,7 +8,7 @@ import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { SafariGoogleSignInHint } from "@/components/SafariGoogleSignInHint";
 import { PublicSubmissionForm, PublicSubmissionFormState } from "@/components/PublicSubmissionForm";
 import { ClientProgressPanel } from "@/components/ClientProgressPanel";
-import { ClientProgress, ClientSubmission, buildPendingClientProgress, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
+import { ClientProgress, ClientSubmission, buildPendingClientProgress, buildPendingProgressFromSubmission, createPortalAccessCode, getClientProgressPath, hydrateClientSubmission, isPortalAccessCode, normalizeReferenceUrls } from "@/lib/clientPortal";
 import { ArtworkItem, LicenseOption, PaymentState, PrivacyMode, RushLevel, ScheduleType, applyAutomaticPricing, contactChannels, createArtworkItem, createBlankCommission, formatCurrency, formatDisplayDate, getAvailableFinishes, getAvailableQSizes, getAvailableScopes, statusMeta, weekLabel } from "@/lib/commission";
 import { describeAnonymousAuthError, describeFirebaseAuthError, firebaseAuth, firestoreDb } from "@/lib/firebase";
 import { StudioSettings, defaultStudioSettings, normalizeStudioSettings } from "@/lib/studioSettings";
@@ -71,7 +71,7 @@ function readableFirebaseError(error: unknown) {
 
 function readableCodeLookupError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "找不到可用的進度連結。請確認驗證碼，或請繪師先建立／重新提供專屬驗證碼。";
+  if (message.includes("permission-denied") || message.includes("insufficient permissions")) return "暫時無法開啟這份畫約。若您剛寄出墨諾函箋，繪師尚在啟函，請稍候再查；若等待後仍無法顯示，請聯繫繪師核對對契符節。";
   return readableFirebaseError(error);
 }
 
@@ -184,13 +184,7 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
       const accessCode = createPortalAccessCode();
       const now = Date.now();
       const reference = doc(collection(firestoreDb, "clientSubmissions"));
-      const access = {
-        id: accessCode,
-        accessMode: currentUser.isAnonymous ? "code" as const : "google" as const,
-        clientUid: currentUser.uid,
-        accessCode: currentUser.isAnonymous ? accessCode : null,
-        ownerUid: import.meta.env.VITE_FIREBASE_ALLOWED_UID ?? "",
-      };
+      const access = { id: accessCode, accessMode: "code" as const, clientUid: currentUser.uid, accessCode, ownerUid: import.meta.env.VITE_FIREBASE_ALLOWED_UID ?? "" };
       const batch = writeBatch(firestoreDb);
       batch.set(reference, {
         id: reference.id,
@@ -236,17 +230,28 @@ export default function ClientPortalPage({ initialTab }: { initialTab?: PortalTa
     setSearching(true);
     setError(null);
     clearGoogleSignInIssue();
+    const matchingSubmission = mySubmissions.find((item) => item.state === "submitted" && item.accessCode?.toUpperCase() === normalized);
+    const showPendingSubmission = () => {
+      const pending = matchingSubmission ? buildPendingProgressFromSubmission(matchingSubmission) : null;
+      if (!pending) return false;
+      setCodeProgress(pending);
+      setError(null);
+      window.location.hash = getClientProgressPath(normalized).replace(/^\/#/, "");
+      return true;
+    };
     try {
       const result = await getDoc(doc(firestoreDb, "clientProgress", normalized));
       const data = result.exists() ? result.data() as ClientProgress : null;
       if (!data || data.revokedAt) {
+        if (showPendingSubmission()) return;
         setCodeProgress(null);
-        setError("找不到可用的進度連結；請確認驗證碼或向繪師索取新的連結。");
+        setError("尚未查得可檢視的畫約。若您剛寄出墨諾函箋，代表繪師尚在啟函，無須重複寄送；請稍候再查或聯繫繪師核對對契符節。");
         return;
       }
       setCodeProgress(data);
       window.location.hash = getClientProgressPath(normalized).replace(/^\/#/, "");
     } catch (nextError) {
+      if (showPendingSubmission()) return;
       setError(readableCodeLookupError(nextError));
     } finally {
       setSearching(false);

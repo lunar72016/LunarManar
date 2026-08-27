@@ -56,8 +56,8 @@ export function useClientIntake(user: User | null, isAllowed: boolean) {
   const publishProgress = useCallback(async (commission: Commission, submission: ClientSubmission) => {
     const db = firestoreDb;
     if (!db || !user) throw new Error("目前無法連接資料庫");
-    const access = submission.accessMode === "code"
-      ? { id: submission.accessCode!, accessMode: "code" as const, clientUid: null, accessCode: submission.accessCode, ownerUid: user.uid }
+    const access = submission.accessCode
+      ? { id: submission.accessCode, accessMode: "code" as const, clientUid: submission.clientUid, accessCode: submission.accessCode, ownerUid: user.uid }
       : { id: commission.id, accessMode: "google" as const, clientUid: submission.clientUid, accessCode: null, ownerUid: user.uid };
     const progress = buildClientProgress(commission, access);
     await setDoc(doc(db, "clientProgress", progress.id), progress);

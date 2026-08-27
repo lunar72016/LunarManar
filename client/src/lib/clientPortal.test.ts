@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClientProgress, buildPendingClientProgress, createPortalAccessCode, formatPortalDateInput, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicPaymentDisclosure, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
+import { buildClientProgress, buildPendingClientProgress, buildPendingProgressFromSubmission, createPortalAccessCode, formatPortalDateInput, getActiveCodeProgress, getClientProgressPath, getPendingClientSubmissions, getPublicPaymentDisclosure, getPublicScheduleDetails, hydrateClientSubmission, isPortalAccessCode, isVerifiedCodeProgress, normalizeReferenceUrls } from "./clientPortal";
 import { createBlankCommission } from "./commission";
 
 describe("委託人入口資料工具", () => {
@@ -33,6 +33,13 @@ describe("委託人入口資料工具", () => {
 
     expect(progress).toMatchObject({ id: code, commissionId: "", status: "inquiry", statusLabel: "等待繪師確認", scheduleWeekLabel: "繪師確認後提供" });
     expect(progress).not.toHaveProperty("requirements");
+  });
+
+  it("restores a visible pending snapshot from a matching submitted code when older data lacks progress", () => {
+    const code = "HY-0000000000000000-0000000000000000-0000000000000000";
+    const progress = buildPendingProgressFromSubmission({ accessCode: code, clientUid: "google-user", ownerUid: "artist", clientName: "月見", createdAt: 100, updatedAt: 200 });
+    expect(progress).toMatchObject({ id: code, accessMode: "code", clientUid: "google-user", accessCode: code, clientName: "月見", createdAt: 100, updatedAt: 200 });
+    expect(progress?.statusHistory).toEqual([{ status: "inquiry", at: 100 }]);
   });
 
   it("shows only the due date for a rush commission in the public summary", () => {

@@ -186,6 +186,13 @@ export function buildPendingClientProgress(access: Pick<ClientProgress, "id" | "
   };
 }
 
+/** 將既有待受理函箋轉為本機可顯示的等待快照，處理早期送件缺少公開進度文件時的正常查詢情境。 */
+export function buildPendingProgressFromSubmission(submission: Pick<ClientSubmission, "accessCode" | "clientUid" | "ownerUid" | "clientName" | "createdAt" | "updatedAt">): ClientProgress | null {
+  if (!submission.accessCode) return null;
+  const progress = buildPendingClientProgress({ id: submission.accessCode, accessMode: "code", clientUid: submission.clientUid, accessCode: submission.accessCode, ownerUid: submission.ownerUid }, submission.clientName);
+  return { ...progress, createdAt: submission.createdAt, updatedAt: submission.updatedAt, statusHistory: [{ status: "inquiry", at: submission.createdAt }] };
+}
+
 /** 將寄墨主提供的雲端連結正規化；只接受 http／https，且去除重複與空白。 */
 export function normalizeReferenceUrls(value: string) {
   return Array.from(new Set(value.split(/[\n,\s]+/).map((item) => item.trim()).filter((item) => /^https?:\/\//i.test(item))));
